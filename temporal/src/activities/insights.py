@@ -45,12 +45,21 @@ def _write_headers() -> dict[str, str]:
 
 
 @activity.defn
-def model_chat(messages: list[dict], tool_specs: list[dict], max_completion_tokens: int = 2048) -> dict:
-    """One model turn. Returns the assistant message as a plain dict."""
+def model_chat(
+    messages: list[dict],
+    tool_specs: list[dict],
+    max_completion_tokens: int = 2048,
+    tool_choice: Any = "auto",
+) -> dict:
+    """One model turn. Returns the assistant message as a plain dict.
+
+    `tool_choice` may be "auto" or a forced choice, e.g.
+    {"type": "function", "function": {"name": "submit_verdict"}}.
+    """
     resp = _model().chat(
         messages,
         tools=tool_specs,
-        tool_choice="auto",
+        tool_choice=tool_choice,
         max_completion_tokens=max_completion_tokens,
     )
     choice = resp.choices[0]

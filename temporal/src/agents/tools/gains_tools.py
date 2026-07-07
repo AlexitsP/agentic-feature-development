@@ -58,8 +58,9 @@ TOOLS: list[dict[str, Any]] = [
                     "spoken_line": {"type": "string", "description": "What the voice shouts — a Ronnie Coleman / Arnold catchphrase on a pass, or a scolding on a fail"},
                     "sound": {"type": "string", "enum": ["hype", "shame"]},
                     "reason": {"type": "string", "description": "One-line why, coach voice"},
+                    "legend_quip": {"type": "string", "description": "A funny 1-2 sentence comparison of the user's numbers to the named legend's numbers"},
                 },
-                "required": ["passed", "headline", "spoken_line", "sound", "reason"],
+                "required": ["passed", "headline", "spoken_line", "sound", "reason", "legend_quip"],
             },
         },
     },
@@ -73,3 +74,21 @@ HYPE_QUERIES = [
     "Arnold Schwarzenegger pump",
 ]
 SHAME_QUERIES = ["angry dog barking", "disappointed dog", "sad dog"]
+
+# Legends to stack the user up against. Stats are approximate contest condition.
+LEGENDS = [
+    {"name": "Ronnie Coleman", "weight_kg": 137, "height_cm": 180, "body_fat_pct": 4,
+     "gif_query": "Ronnie Coleman", "fun_fact": "8-time Mr. Olympia who squatted 800 lb yelling 'YEAH BUDDY'."},
+    {"name": "Arnold Schwarzenegger", "weight_kg": 107, "height_cm": 188, "body_fat_pct": 5,
+     "gif_query": "Arnold Schwarzenegger bodybuilding", "fun_fact": "7-time Mr. Olympia, then the Terminator, then a Governor."},
+    {"name": "Dorian Yates", "weight_kg": 122, "height_cm": 178, "body_fat_pct": 4,
+     "gif_query": "Dorian Yates", "fun_fact": "'The Shadow' — 6 Olympias on brutally heavy training."},
+    {"name": "Jay Cutler", "weight_kg": 121, "height_cm": 175, "body_fat_pct": 5,
+     "gif_query": "Jay Cutler bodybuilder", "fun_fact": "4-time Mr. Olympia who finally dethroned Ronnie."},
+    {"name": "Phil Heath", "weight_kg": 113, "height_cm": 175, "body_fat_pct": 4,
+     "gif_query": "Phil Heath", "fun_fact": "'The Gift' — 7 straight Mr. Olympia titles."},
+    {"name": "Chris Bumstead", "weight_kg": 100, "height_cm": 185, "body_fat_pct": 4,
+     "gif_query": "Chris Bumstead", "fun_fact": "'CBum' — the Classic Physique king."},
+    {"name": "Frank Zane", "weight_kg": 85, "height_cm": 175, "body_fat_pct": 5,
+     "gif_query": "Frank Zane", "fun_fact": "3-time Mr. Olympia and the icon of aesthetics."},
+]

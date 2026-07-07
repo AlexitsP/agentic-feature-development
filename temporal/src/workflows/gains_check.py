@@ -69,10 +69,33 @@ class GainsCheckWorkflow:
             {"via": "poller claim", "task_queue": "main"},
         )
 
+        # Pick a random legend to stack the user up against.
+        legend = await workflow.execute_activity(
+            "pick_legend", start_to_close_timeout=_ACTIVITY_TIMEOUT
+        )
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"Also compare me to {legend['name']} — contest weight {legend['weight_kg']} kg, "
+                    f"~{legend['body_fat_pct']}% body fat, height {legend['height_cm']} cm "
+                    f"({legend['fun_fact']}). In legend_quip, tell me in a funny way how close "
+                    "(or hilariously far) my numbers are to theirs."
+                ),
+            }
+        )
+        await emit(
+            "legend",
+            f"Legend · {legend['name']}",
+            {"name": legend["name"], "found": bool(legend.get("image_url"))},
+        )
+
         for rnd in range(MAX_ROUNDS):
             resp = await workflow.execute_activity(
                 "model_chat",
-                args=[messages, TOOLS, 1024],
+                # Force the verdict tool so the reasoning model can't just "think
+                # out loud" and skip it, and give it headroom for reasoning tokens.
+                args=[messages, TOOLS, 2048, {"type": "function", "function": {"name": "submit_verdict"}}],
                 start_to_close_timeout=timedelta(seconds=90),
                 retry_policy=model_retry,
             )
@@ -94,20 +117,16 @@ class GainsCheckWorkflow:
             messages.append(assistant_msg)
 
             if not tool_calls:
-                result = {
-                    "passed": False,
-                    "headline": "HMM",
-                    "spoken_line": resp.get("content") or "Try again.",
-                    "gif_url": None,
-                    "sound": "shame",
-                    "reason": "No verdict produced.",
-                    "steps": steps,
-                }
-                await emit("finalized", "Supabase · verdict saved", {"passed": False})
-                await workflow.execute_activity(
-                    "finalize_gains", args=[check_id, "done", result, None], start_to_close_timeout=_ACTIVITY_TIMEOUT
+                # The model replied with prose instead of calling the tool; nudge
+                # it and loop rather than giving up (reasoning models sometimes
+                # "think out loud" for a turn before calling the function).
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Call submit_verdict now with your final decision, including legend_quip.",
+                    }
                 )
-                return {"check_id": check_id, "result": result}
+                continue
 
             for tc in tool_calls:
                 name = tc["name"]
@@ -128,6 +147,15 @@ class GainsCheckWorkflow:
                     "sound": args.get("sound") or ("hype" if passed else "shame"),
                     "reason": args.get("reason") or "",
                     "steps": steps,
+                    "legend": {
+                        "name": legend["name"],
+                        "weight_kg": legend["weight_kg"],
+                        "height_cm": legend["height_cm"],
+                        "body_fat_pct": legend["body_fat_pct"],
+                        "fun_fact": legend["fun_fact"],
+                        "image_url": legend.get("image_url"),
+                        "quip": args.get("legend_quip") or "",
+                    },
                 }
 
                 # Deterministic themed GIF: Ronnie/Arnold on a pass, a dog on a fail.

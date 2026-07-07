@@ -39,6 +39,17 @@ def fetch_verdict_gif(passed: bool) -> dict[str, Any]:
 
 
 @activity.defn
+def pick_legend() -> dict[str, Any]:
+    """Pick a random bodybuilding legend and attach a GIF of them."""
+    import random
+
+    legend = dict(random.choice(gains_tools.LEGENDS))
+    gif = gains_tools.search_gif(legend["gif_query"])
+    legend["image_url"] = gif.get("url")
+    return legend
+
+
+@activity.defn
 def synthesize_speech(text: str, hype: bool) -> str | None:
     """Neural TTS via Azure Speech. Returns base64 MP3, or None if unconfigured/failed."""
     key = settings.azure_speech_key

@@ -13,6 +13,13 @@ export const Route = createFileRoute('/gains')({
   component: GainsCheck,
 });
 
+// "Meta" stats about building this whole app with AI. Update these with the real
+// figures from Claude Code's /cost (they can only be measured on your side).
+const BUILD_STATS = {
+  time: 'TBD',
+  tokens: 'TBD',
+};
+
 interface GainsResult {
   passed: boolean;
   headline: string;
@@ -21,6 +28,15 @@ interface GainsResult {
   sound: 'hype' | 'shame';
   reason: string;
   audio_b64?: string | null;
+  legend?: {
+    name: string;
+    weight_kg: number;
+    height_cm: number;
+    body_fat_pct: number;
+    fun_fact: string;
+    image_url: string | null;
+    quip: string;
+  } | null;
   steps?: Array<{ tool: string; args: Record<string, unknown>; result: { query?: string; source?: string } }>;
 }
 
@@ -72,6 +88,7 @@ function GainsCheck() {
   const [checkId, setCheckId] = useState<string | null>(null);
   const [events, setEvents] = useState<TraceEvent[]>([]);
   const startingRef = useRef(false);
+  const activeStepRef = useRef<HTMLLIElement | null>(null);
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v));
 
@@ -162,6 +179,14 @@ function GainsCheck() {
         desc: 'The AI model reads your numbers and decides its next move — look something up, or give the final verdict.',
         tokens: e.tokens,
       };
+    if (e.stage === 'legend')
+      return {
+        icon: '🏆',
+        label: `Legend · ${d.name ?? ''}`,
+        sub: 'random rival picked',
+        desc: `Picks a random bodybuilding legend (${d.name ?? ''}) and a photo of them to size you up against.`,
+        tokens: null,
+      };
     if (e.stage === 'tool')
       return {
         icon: '🎬',
@@ -218,10 +243,27 @@ function GainsCheck() {
   const totalTokens = events.reduce((n, e) => n + (e.tokens ?? 0), 0);
   const pct = status === 'done' ? 100 : Math.min(92, (steps.filter((s) => s.done).length / (steps.length + 1)) * 100);
   const showTrace = status !== 'idle';
+  const lastDoneIndex = steps.reduce((acc, s, i) => (s.done ? i : acc), 0);
+
+  // Keep the newest active step scrolled into view as the trace advances.
+  useEffect(() => {
+    activeStepRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [events.length, status]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <style>{`@keyframes gainsflash{0%,49%{opacity:1}50%,100%{opacity:.15}}`}</style>
+      <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-muted/30 px-4 py-2 text-sm">
+        <span>
+          ⏱️ <span className="text-muted-foreground">Time to build this app:</span>{' '}
+          <span className="font-semibold">{BUILD_STATS.time}</span>
+        </span>
+        <span>
+          🪙 <span className="text-muted-foreground">Tokens to build this app:</span>{' '}
+          <span className="font-semibold">{BUILD_STATS.tokens}</span>
+        </span>
+      </div>
+
       <div>
         <h1 className="text-3xl font-bold tracking-tight">💪 Gains Check</h1>
         <p className="text-muted-foreground">Track your macros? The coach will let you know.</p>
@@ -244,7 +286,7 @@ function GainsCheck() {
           </div>
           <ol className="flex items-stretch gap-1 overflow-x-auto pb-1">
             {steps.map((s, i) => (
-              <li key={i} className="flex items-center gap-1">
+              <li key={i} ref={i === lastDoneIndex ? activeStepRef : undefined} className="flex items-center gap-1">
                 {i > 0 && <span className="text-muted-foreground">→</span>}
                 <div
                   className={`flex w-[200px] shrink-0 flex-col rounded-md border px-3 py-2 text-xs transition-opacity ${
@@ -329,6 +371,38 @@ function GainsCheck() {
           <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
             replay sound
           </button>
+        </div>
+      )}
+
+      {result && status === 'done' && result.legend && (
+        <div className="rounded-xl border p-4">
+          <div className="mb-3 text-sm font-medium">🏆 You vs {result.legend.name}</div>
+          <div className="flex flex-col gap-4 sm:flex-row">
+            {result.legend.image_url && (
+              <img
+                src={result.legend.image_url}
+                alt={result.legend.name}
+                className="h-40 w-40 shrink-0 rounded-lg object-cover"
+              />
+            )}
+            <div className="flex-1 space-y-3">
+              <p className="text-sm">{result.legend.quip}</p>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="font-medium text-muted-foreground">Metric</div>
+                <div className="font-medium">You</div>
+                <div className="font-medium">{result.legend.name}</div>
+
+                <div className="text-muted-foreground">Weight (kg)</div>
+                <div>{form.weight_kg || '—'}</div>
+                <div>{result.legend.weight_kg}</div>
+
+                <div className="text-muted-foreground">Body fat (%)</div>
+                <div>{form.body_fat_pct || '—'}</div>
+                <div>{result.legend.body_fat_pct}</div>
+              </div>
+              <p className="text-xs text-muted-foreground">{result.legend.fun_fact}</p>
+            </div>
+          </div>
         </div>
       )}
     </div>
