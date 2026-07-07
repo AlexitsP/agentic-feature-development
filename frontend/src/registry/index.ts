@@ -24,6 +24,7 @@ import {
   Alert,
   Skeleton,
   Badge,
+  InsightsPanel,
 } from '@/components/engine';
 
 /**
@@ -57,6 +58,9 @@ export function createDefaultRegistry(): ComponentRegistry {
 
     // Data
     Badge,
+
+    // Insights
+    InsightsPanel,
   });
 
   return registry;
