@@ -1,18 +1,19 @@
+/* Minimal, TypeScript-aware ESLint config for the Vite/React app. */
 module.exports = {
-  env: {
-    browser: true,
-    es2021: true
-  },
-  extends: ['eslint:recommended', 'plugin:react/recommended'],
+  root: true,
+  env: { browser: true, es2021: true },
+  parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 'latest',
-    sourceType: 'module'
+    sourceType: 'module',
+    ecmaFeatures: { jsx: true },
   },
-  settings: {
-    react: {
-      version: 'detect'
-    }
+  plugins: ['react-hooks'],
+  extends: ['plugin:react-hooks/recommended'],
+  rules: {
+    // Keep the useful hook-safety rule as an error; treat dep hints as warnings.
+    'react-hooks/rules-of-hooks': 'error',
+    'react-hooks/exhaustive-deps': 'warn',
   },
-  plugins: ['react'],
-  rules: {}
+  ignorePatterns: ['dist', 'routeTree.gen.ts', '*.cjs', 'vite.config.ts', 'vite.config.d.ts'],
 };

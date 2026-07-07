@@ -30,6 +30,40 @@ export function ComponentRenderer({
 }: ComponentRendererProps) {
   const registry = getGlobalRegistry();
 
+  // Hooks must run unconditionally and in a stable order on every render, so
+  // they are computed up front — before any of the early returns below. They
+  // depend only on the definition/context, not on which branch we take.
+  const resolvedProps = useMemo(() => {
+    return definition.props ? resolveProps(definition.props, context) : {};
+  }, [definition.props, context]);
+
+  const renderedChildren = useMemo(() => {
+    if (!definition.children || definition.children.length === 0) {
+      return null;
+    }
+    return definition.children.map((child, index) => (
+      <ComponentRenderer key={index} definition={child} context={context} />
+    ));
+  }, [definition.children, context]);
+
+  const slots = useMemo(() => {
+    if (!definition.slots) return undefined;
+
+    const renderedSlots: Record<string, React.ReactNode> = {};
+    for (const [slotName, slotContent] of Object.entries(definition.slots)) {
+      if (Array.isArray(slotContent)) {
+        renderedSlots[slotName] = slotContent.map((child, index) => (
+          <ComponentRenderer key={index} definition={child} context={context} />
+        ));
+      } else {
+        renderedSlots[slotName] = (
+          <ComponentRenderer definition={slotContent} context={context} />
+        );
+      }
+    }
+    return renderedSlots;
+  }, [definition.slots, context]);
+
   // Handle conditional rendering
   if (definition.if !== undefined) {
     const condition = evaluateExpression(definition.if, context);
@@ -99,43 +133,6 @@ export function ComponentRenderer({
       </div>
     );
   }
-
-  // Resolve props (evaluate expressions)
-  const resolvedProps = useMemo(() => {
-    return definition.props ? resolveProps(definition.props, context) : {};
-  }, [definition.props, context]);
-
-  // Render children recursively
-  const renderedChildren = useMemo(() => {
-    if (!definition.children || definition.children.length === 0) {
-      return null;
-    }
-
-    return definition.children.map((child, index) => (
-      <ComponentRenderer key={index} definition={child} context={context} />
-    ));
-  }, [definition.children, context]);
-
-  // Handle slots for complex components (like Tabs)
-  const slots = useMemo(() => {
-    if (!definition.slots) return undefined;
-
-    const renderedSlots: Record<string, React.ReactNode> = {};
-
-    for (const [slotName, slotContent] of Object.entries(definition.slots)) {
-      if (Array.isArray(slotContent)) {
-        renderedSlots[slotName] = slotContent.map((child, index) => (
-          <ComponentRenderer key={index} definition={child} context={context} />
-        ));
-      } else {
-        renderedSlots[slotName] = (
-          <ComponentRenderer definition={slotContent} context={context} />
-        );
-      }
-    }
-
-    return renderedSlots;
-  }, [definition.slots, context]);
 
   // Render the component
   // Only pass explicit children if we have rendered child components

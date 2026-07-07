@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint . --ext .ts,.tsx --max-warnings 999"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
@@ -42,6 +42,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.22",
     "eslint": "^8.57.0",

@@ -277,6 +277,13 @@
       },
       {
         "type": "Card",
+        "props": { "title": "AI Insights" },
+        "children": [
+          { "type": "InsightsPanel" }
+        ]
+      },
+      {
+        "type": "Card",
         "props": { "title": "Version History" },
         "children": [
           {
