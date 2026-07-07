@@ -25,6 +25,14 @@ interface GainsResult {
 
 type Status = 'idle' | 'pending' | 'running' | 'done' | 'error';
 
+interface TraceEvent {
+  seq: number;
+  stage: string;
+  label: string;
+  detail: Record<string, unknown> | null;
+  tokens: number | null;
+}
+
 function speak(line: string, hype: boolean) {
   try {
     const synth = window.speechSynthesis;
@@ -46,6 +54,7 @@ function GainsCheck() {
   const [result, setResult] = useState<GainsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkId, setCheckId] = useState<string | null>(null);
+  const [events, setEvents] = useState<TraceEvent[]>([]);
   const startingRef = useRef(false);
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v));
@@ -55,6 +64,7 @@ function GainsCheck() {
     startingRef.current = true;
     setResult(null);
     setError(null);
+    setEvents([]);
     setStatus('pending');
     const input = {
       weight_kg: num(form.weight_kg),
@@ -78,6 +88,9 @@ function GainsCheck() {
 
   useEffect(() => {
     if (!checkId) return;
+    const mergeEvent = (e: TraceEvent) =>
+      setEvents((prev) => (prev.some((p) => p.seq === e.seq) ? prev : [...prev, e].sort((a, b) => a.seq - b.seq)));
+
     const channel = supabase
       .channel(`gains-${checkId}`)
       .on(
@@ -93,13 +106,45 @@ function GainsCheck() {
           }
         },
       )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'gains_events', filter: `check_id=eq.${checkId}` },
+        (payload) => mergeEvent(payload.new as TraceEvent),
+      )
       .subscribe();
+
+    // Backfill any events that landed before the subscription was ready.
+    supabase
+      .from('gains_events')
+      .select('seq,stage,label,detail,tokens')
+      .eq('check_id', checkId)
+      .order('seq')
+      .then(({ data }) => (data as TraceEvent[] | null)?.forEach(mergeEvent));
+
     return () => {
       supabase.removeChannel(channel);
     };
   }, [checkId]);
 
   const busy = status === 'pending' || status === 'running';
+
+  const backendSteps = events.map((e) => {
+    const d = e.detail ?? {};
+    if (e.stage === 'dispatched') return { icon: '⚙️', label: 'Temporal', sub: String(d.via ?? 'dispatched'), tokens: null };
+    if (e.stage === 'reasoning') return { icon: '🧠', label: 'Azure · gpt-5-mini', sub: `reasoning · round ${d.round ?? ''}`, tokens: e.tokens };
+    if (e.stage === 'tool') return { icon: '🎬', label: 'Giphy', sub: `search_gif: ${d.query ?? ''}`, tokens: null };
+    if (e.stage === 'finalized') return { icon: '💾', label: 'Supabase', sub: 'verdict saved', tokens: null };
+    return { icon: '•', label: e.label, sub: e.stage, tokens: e.tokens };
+  });
+  const steps: Array<{ icon: string; label: string; sub: string; tokens: number | null; done: boolean }> = [
+    { icon: '🖥️', label: 'Browser', sub: 'insert run row', tokens: null, done: status !== 'idle' },
+    { icon: '🗂️', label: 'Supabase', sub: 'queued (pending)', tokens: null, done: status !== 'idle' },
+    ...backendSteps.map((s) => ({ ...s, done: true })),
+    { icon: '📡', label: 'Browser', sub: 'Realtime update', tokens: null, done: status === 'done' },
+  ];
+  const totalTokens = events.reduce((n, e) => n + (e.tokens ?? 0), 0);
+  const pct = status === 'done' ? 100 : Math.min(92, (steps.filter((s) => s.done).length / (steps.length + 1)) * 100);
+  const showTrace = status !== 'idle';
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -108,6 +153,42 @@ function GainsCheck() {
         <h1 className="text-3xl font-bold tracking-tight">💪 Gains Check</h1>
         <p className="text-muted-foreground">Track your macros? The coach will let you know.</p>
       </div>
+
+      {showTrace && (
+        <div className="rounded-lg border p-4">
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span className="font-medium">Request trace</span>
+            <span className="text-muted-foreground">
+              {totalTokens > 0 ? `${totalTokens} tokens` : '—'}
+              {busy && <span className="ml-2 animate-pulse">● live</span>}
+            </span>
+          </div>
+          <div className="mb-3 h-1.5 w-full overflow-hidden rounded bg-muted">
+            <div className="h-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
+          </div>
+          <ol className="flex items-stretch gap-1 overflow-x-auto pb-1">
+            {steps.map((s, i) => (
+              <li key={i} className="flex items-center gap-1">
+                {i > 0 && <span className="text-muted-foreground">→</span>}
+                <div
+                  className={`flex min-w-[128px] flex-col rounded-md border px-3 py-2 text-xs transition-opacity ${
+                    s.done ? 'opacity-100' : 'opacity-40'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>{s.icon}</span>
+                    <span className="font-medium">{s.label}</span>
+                  </div>
+                  <span className="text-muted-foreground">{s.sub}</span>
+                  {s.tokens != null && (
+                    <span className="mt-1 inline-block w-fit rounded bg-secondary px-1.5 py-0.5">{s.tokens} tok</span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
         {(

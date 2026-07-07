@@ -59,10 +59,18 @@ def model_chat(messages: list[dict], tool_specs: list[dict], max_completion_toke
         {"id": tc.id, "name": tc.function.name, "arguments": tc.function.arguments}
         for tc in (msg.tool_calls or [])
     ]
+    usage = getattr(resp, "usage", None)
     return {
         "content": msg.content,
         "tool_calls": tool_calls,
         "finish_reason": choice.finish_reason,
+        "usage": {
+            "prompt": usage.prompt_tokens,
+            "completion": usage.completion_tokens,
+            "total": usage.total_tokens,
+        }
+        if usage
+        else None,
     }
 
 

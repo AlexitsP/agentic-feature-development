@@ -39,6 +39,7 @@ async def main() -> None:
             insights.finalize_run,
             gains.search_gif,
             gains.finalize_gains,
+            gains.record_gains_event,
         ],
         activity_executor=activity_executor,
     )

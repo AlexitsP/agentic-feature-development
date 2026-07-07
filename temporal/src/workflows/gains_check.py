@@ -55,13 +55,36 @@ class GainsCheckWorkflow:
         ]
         steps: list[dict] = []
         model_retry = RetryPolicy(maximum_attempts=3)
+        seq = 0
 
-        for _ in range(MAX_ROUNDS):
+        async def emit(stage: str, label: str, detail: object = None, tokens: int | None = None) -> None:
+            nonlocal seq
+            seq += 1
+            await workflow.execute_activity(
+                "record_gains_event",
+                args=[check_id, seq, stage, label, detail, tokens],
+                start_to_close_timeout=_ACTIVITY_TIMEOUT,
+            )
+
+        await emit(
+            "dispatched",
+            "Temporal · GainsCheckWorkflow",
+            {"via": "poller claim", "task_queue": "main"},
+        )
+
+        for rnd in range(MAX_ROUNDS):
             resp = await workflow.execute_activity(
                 "model_chat",
                 args=[messages, TOOLS, 1024],
                 start_to_close_timeout=timedelta(seconds=90),
                 retry_policy=model_retry,
+            )
+            usage = resp.get("usage") or {}
+            await emit(
+                "reasoning",
+                "Azure OpenAI · gpt-5-mini",
+                {"round": rnd + 1, "finish_reason": resp.get("finish_reason")},
+                usage.get("total"),
             )
             tool_calls = resp.get("tool_calls") or []
 
@@ -83,6 +106,7 @@ class GainsCheckWorkflow:
                     "reason": "No verdict produced.",
                     "steps": steps,
                 }
+                await emit("finalized", "Supabase · verdict saved", {"passed": False})
                 await workflow.execute_activity(
                     "finalize_gains", args=[check_id, "done", result, None], start_to_close_timeout=_ACTIVITY_TIMEOUT
                 )
@@ -105,6 +129,11 @@ class GainsCheckWorkflow:
                         "reason": args.get("reason") or "",
                         "steps": steps,
                     }
+                    await emit(
+                        "finalized",
+                        "Supabase · verdict saved",
+                        {"passed": result["passed"], "headline": result["headline"]},
+                    )
                     await workflow.execute_activity(
                         "finalize_gains", args=[check_id, "done", result, None], start_to_close_timeout=_ACTIVITY_TIMEOUT
                     )
@@ -114,6 +143,11 @@ class GainsCheckWorkflow:
                     "search_gif", args=[args.get("query", "")], start_to_close_timeout=_ACTIVITY_TIMEOUT
                 )
                 steps.append({"tool": name, "args": args, "result": gif})
+                await emit(
+                    "tool",
+                    "Giphy · search_gif",
+                    {"query": args.get("query"), "source": gif.get("source"), "found": bool(gif.get("url"))},
+                )
                 messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps(gif)})
 
         await workflow.execute_activity(
