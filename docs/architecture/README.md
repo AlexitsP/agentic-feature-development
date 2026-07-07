@@ -17,7 +17,9 @@ specs when you need the depth on a particular decision.
 
 This repository ships **a product plus the factory that builds it**:
 
-1. **The product** — _\<one line: what the application does and for whom\>_.
+1. **The product** — a JSON-driven Supabase + Temporal + Vite/React app with two agentic
+   features (Entity Insights Assistant and the Gains Check demo). See
+   [`product-architecture.md`](./product-architecture.md) for the real, current shape.
 2. **The Software Factory** — GitHub Actions + role-based AI agents (see
    [`.github/agents/`](../../.github/agents/)) that triage, design, build, review,
    and ship the product. Configured via [`.github/factory.yml`](../../.github/factory.yml).
@@ -78,14 +80,13 @@ flowchart TB
 
 ## The pages
 
-Suggested structure — add or remove pages to match your system:
-
 | Page | What it covers |
 |------|----------------|
-| [Product architecture](./product-architecture.md) | Frontend, data layer, core workflows |
-| [Data model & security](./data-model.md) | Schema, domain graph, access/role model |
-| [Software Factory](./software-factory.md) | Role-based agents, cadence pipelines, issue→PR→merge→deploy lifecycle |
-| [CI/CD & delivery pipeline](./ci-cd-pipelines.md) | Workflow catalogue, PR test gate, gated dev→test→prod promotion |
-| [Deployment & infrastructure](./deployment.md) | Local stack, cluster/Helm multi-env topology, image promotion, edge |
+| [Product architecture](./product-architecture.md) | **The main page** — request lifecycle, components, data model, the two Gains engines, external deps |
+| [ADRs](../adrs/) | The binding record of *why* each decision was made |
+| [Specs](../specs/) | Detailed designs for individual feature slices |
+| [Onboarding](../../ONBOARDING.md) | Get a fresh clone running and make a first change |
 
-See each page for the detailed diagrams and file references.
+> The Software-Factory / multi-env AKS content above is inherited from the template. This fork
+> runs the **product locally** and keeps the factory/deploy pipelines disabled — see
+> [ADR-0004](../adrs/0004-deployment-posture-local-only.md).

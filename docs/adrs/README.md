@@ -17,11 +17,12 @@ Architectural decisions (data model, orchestration engine, deployment topology, 
 
 ## Index
 
-No ADRs recorded yet. Add a row per decision as you accept it.
-
 | ADR | Title | Status |
 |---|---|---|
-| [0001](./0001-example-slug.md) | _First decision title_ | Proposed |
+| [0001](./0001-entity-insights-workflow-and-model-hosting.md) | Entity Insights workflow shape and model hosting | Accepted |
+| [0002](./0002-gains-check-guided-vs-agentic-engine.md) | Gains Check — Guided vs Agentic engine toggle | Accepted |
+| [0003](./0003-testing-strategy.md) | Testing strategy — unit + Temporal workflow tests, CI fails loud | Accepted |
+| [0004](./0004-deployment-posture-local-only.md) | Deployment posture — local-only for now | Accepted |
 
 ## Maintenance note
 
