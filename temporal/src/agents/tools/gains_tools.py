@@ -11,11 +11,13 @@ from ...config import settings
 _GIPHY_SEARCH = "https://api.giphy.com/v1/gifs/search"
 
 
-def search_gif(query: str, rating: str = "pg-13") -> dict[str, Any]:
+def search_gif(query: str, rating: str = "pg-13", fallback_query: str | None = None) -> dict[str, Any]:
     """Fetch a GIF URL for a query via Giphy (if GIPHY_API_KEY is set).
 
-    Returns {url, source, query}. Without a key, url is None and the frontend
-    falls back to an emoji — the demo still runs.
+    Returns {url, source, query}. If the specific query comes back empty and a
+    broader ``fallback_query`` is given, retries once with it before giving up.
+    Without a key (or on any error) url is None; callers layer a curated
+    fallback on top so a themed GIF always shows.
     """
     key = settings.giphy_api_key
     if not key:
@@ -28,6 +30,9 @@ def search_gif(query: str, rating: str = "pg-13") -> dict[str, Any]:
         )
         resp.raise_for_status()
         data = resp.json().get("data") or []
+        if not data and fallback_query:
+            # Broaden the search once before falling back to a curated GIF.
+            return search_gif(fallback_query, rating=rating)
         if not data:
             return {"url": None, "source": "empty", "query": query}
         gif = random.choice(data)
@@ -42,6 +47,66 @@ def search_gif(query: str, rating: str = "pg-13") -> dict[str, Any]:
         return {"url": None, "source": f"error:{type(exc).__name__}", "query": query}
 
 
+# Curated, verified-stable Giphy CDN URLs. Last-resort fallback so the verdict
+# ALWAYS shows a themed GIF even if the live search is empty/errored/keyless.
+FALLBACK_GIFS: dict[str, list[str]] = {
+    "Ronnie Coleman": [
+        "https://media.giphy.com/media/oJjl0sBWtX5ylDRGNF/giphy.gif",
+        "https://media.giphy.com/media/h24Y1pZIGKXzG/giphy.gif",
+        "https://media.giphy.com/media/zpeH9hHFP457a/giphy.gif",
+    ],
+    "Arnold Schwarzenegger": [
+        "https://media.giphy.com/media/BCIoXfA95d1ba/giphy.gif",
+        "https://media.giphy.com/media/wMaXHNDlucW35ZCC5n/giphy.gif",
+        "https://media.giphy.com/media/9DnMb3eR7YRK0L6tYX/giphy.gif",
+    ],
+    "not_tracking": [
+        "https://media.giphy.com/media/JJI0vSkEVNHXVMGV0c/giphy.gif",
+        "https://media.giphy.com/media/5jI8q0Tg6tgeA/giphy.gif",
+        "https://media.giphy.com/media/3oGRFIjETeuYgyLyo0/giphy.gif",
+    ],
+    "slacking": [
+        "https://media.giphy.com/media/qdqxysIbFi6zHijLjp/giphy.gif",
+        "https://media.giphy.com/media/7o5XoOYT3oXICXlgmj/giphy.gif",
+        "https://media.giphy.com/media/CgjAoG5TiBbcOjDbXV/giphy.gif",
+    ],
+}
+
+
+def fallback_gif_url(bucket: str) -> str | None:
+    """A curated CDN GIF for a bucket (a HYPE subject name, or a fail kind)."""
+    urls = FALLBACK_GIFS.get(bucket)
+    return random.choice(urls) if urls else None
+
+
+# Coach personalities. The user picks one; it steers the system-prompt voice and
+# the neural-TTS speaking style (voice must support these mstts express-as styles).
+PERSONAS: dict[str, dict[str, str]] = {
+    "gymbro": {
+        "label": "Gym Bro",
+        "voice": "a loud, funny hype gym bro (think Ronnie Coleman / Arnold) who SCREAMS encouragement",
+        "hype_style": "excited",
+        "shame_style": "angry",
+    },
+    "sergeant": {
+        "label": "Drill Sergeant",
+        "voice": "a brutal military drill sergeant who barks short, clipped orders and accepts NO excuses",
+        "hype_style": "shouting",
+        "shame_style": "angry",
+    },
+    "wholesome": {
+        "label": "Wholesome Coach",
+        "voice": "a kind, endlessly supportive coach who is genuinely proud of any effort and is never mean, only gently encouraging",
+        "hype_style": "cheerful",
+        "shame_style": "hopeful",
+    },
+}
+
+
+def get_persona(key: str | None) -> dict[str, str]:
+    return PERSONAS.get((key or "").lower(), PERSONAS["gymbro"])
+
+
 # OpenAI tool schema. The model only decides the verdict; the workflow fetches
 # the themed GIF deterministically afterwards (guaranteed Ronnie/Arnold on a pass).
 TOOLS: list[dict[str, Any]] = [
@@ -54,10 +119,15 @@ TOOLS: list[dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "passed": {"type": "boolean", "description": "true if they are tracking and doing it right"},
-                    "headline": {"type": "string", "description": "Big on-screen text, e.g. 'YEAH BUDDY!' or 'YOU SHOULD'"},
+                    "fail_kind": {
+                        "type": "string",
+                        "enum": ["not_tracking", "slacking"],
+                        "description": "Only when passed is false: 'not_tracking' if calories or protein are missing/zero (they aren't even logging); 'slacking' if they ARE tracking real numbers but the numbers are weak.",
+                    },
+                    "headline": {"type": "string", "description": "Big on-screen text, e.g. 'YEAH BUDDY!', 'YOU SHOULD', or 'DO BETTER'"},
                     "spoken_line": {"type": "string", "description": "What the voice shouts — a Ronnie Coleman / Arnold catchphrase on a pass, or a scolding on a fail"},
                     "sound": {"type": "string", "enum": ["hype", "shame"]},
-                    "reason": {"type": "string", "description": "One-line why, coach voice"},
+                    "reason": {"type": "string", "description": "One-line why, in your coach voice"},
                     "legend_quip": {"type": "string", "description": "A funny 1-2 sentence comparison of the user's numbers to the named legend's numbers"},
                 },
                 "required": ["passed", "headline", "spoken_line", "sound", "reason", "legend_quip"],
@@ -88,7 +158,18 @@ HYPE_SUBJECTS = {
         ],
     },
 }
-SHAME_QUERIES = ["angry dog barking", "disappointed dog", "sad dog"]
+
+# Fail GIFs by kind. not_tracking = you aren't even logging (angry dog);
+# slacking = you're logging but the numbers are weak (disappointed "come on").
+SHAME_QUERIES: dict[str, list[str]] = {
+    "not_tracking": ["angry dog barking", "disappointed dog", "sad dog"],
+    "slacking": ["disappointed come on", "you can do better", "try harder gym"],
+}
+
+
+def shame_query(fail_kind: str | None) -> str:
+    return random.choice(SHAME_QUERIES.get(fail_kind or "not_tracking", SHAME_QUERIES["not_tracking"]))
+
 
 # Legends to stack the user up against. Stats are approximate contest condition.
 LEGENDS = [
@@ -115,3 +196,42 @@ LEGENDS = [
     {"name": "Cydney Gillon", "weight_kg": 60, "height_cm": 165, "body_fat_pct": 8,
      "gif_query": "Cydney Gillon", "fun_fact": "Dominant multi-time Figure Olympia champion."},
 ]
+
+
+# Distance scales for legend matching. Deliberately NOT the legend spread: every
+# legend is sub-8% contest-shredded, so normalising body fat by its tiny 4-8%
+# range would let it dominate and collapse everyone onto the leanest-but-heaviest
+# legend regardless of weight. These are realistic human gaps — a 35 kg weight
+# gap counts about as "far" as a 12-point body-fat gap — so weight stays meaningful.
+_WEIGHT_SCALE = 35.0
+_BF_SCALE = 12.0
+
+
+def pick_closest_legend(user_input: dict[str, Any] | None) -> dict[str, Any]:
+    """Pick the legend whose contest stats are nearest the user's numbers.
+
+    Distance blends weight and body-fat gaps on realistic human scales (see
+    above) so weight isn't drowned out. If the user gave neither weight nor body
+    fat, there's nothing to match on, so pick at random. Returns a copy with
+    ``matched`` set.
+    """
+    user_input = user_input or {}
+    weight = user_input.get("weight_kg")
+    bf = user_input.get("body_fat_pct")
+
+    if weight is None and bf is None:
+        legend = dict(random.choice(LEGENDS))
+        legend["matched"] = False
+        return legend
+
+    def distance(l: dict[str, Any]) -> float:
+        d = 0.0
+        if weight is not None:
+            d += (abs(l["weight_kg"] - weight) / _WEIGHT_SCALE) ** 2
+        if bf is not None:
+            d += (abs(l["body_fat_pct"] - bf) / _BF_SCALE) ** 2
+        return d
+
+    legend = dict(min(LEGENDS, key=distance))
+    legend["matched"] = True
+    return legend

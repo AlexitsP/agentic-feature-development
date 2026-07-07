@@ -24,11 +24,13 @@ const BUILD_STATS = {
 
 interface GainsResult {
   passed: boolean;
+  fail_kind?: 'not_tracking' | 'slacking' | null;
   headline: string;
   spoken_line: string;
   gif_url: string | null;
   sound: 'hype' | 'shame';
   reason: string;
+  persona?: string;
   audio_b64?: string | null;
   legend?: {
     name: string;
@@ -37,9 +39,24 @@ interface GainsResult {
     body_fat_pct: number;
     fun_fact: string;
     image_url: string | null;
+    matched?: boolean;
     quip: string;
   } | null;
   steps?: Array<{ tool: string; args: Record<string, unknown>; result: { query?: string; source?: string } }>;
+}
+
+const PERSONAS = [
+  { key: 'gymbro', emoji: '🗣️', label: 'Gym Bro', blurb: 'Loud hype, all caps' },
+  { key: 'sergeant', emoji: '🎖️', label: 'Drill Sergeant', blurb: 'No excuses, soldier' },
+  { key: 'wholesome', emoji: '🤗', label: 'Wholesome Coach', blurb: 'Kind & encouraging' },
+] as const;
+
+// Verdict theming: pass = green, "slacking" fail = amber, "not tracking" = red.
+function verdictTheme(r: GainsResult) {
+  if (r.passed) return { border: 'border-green-500', bg: 'bg-green-500/10', text: 'text-green-500', flash: false, emoji: '💪🔥' };
+  if (r.fail_kind === 'slacking')
+    return { border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-500', flash: true, emoji: '😤' };
+  return { border: 'border-red-500', bg: 'bg-red-500/10', text: 'text-red-500', flash: true, emoji: '🐕📢' };
 }
 
 type Status = 'idle' | 'pending' | 'running' | 'done' | 'error';
@@ -84,6 +101,7 @@ function playResult(r: GainsResult) {
 
 function GainsCheck() {
   const [form, setForm] = useState({ weight_kg: '', body_fat_pct: '', calories: '', protein_g: '' });
+  const [persona, setPersona] = useState<string>('gymbro');
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<GainsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +125,7 @@ function GainsCheck() {
       body_fat_pct: num(form.body_fat_pct),
       calories: num(form.calories),
       protein_g: num(form.protein_g),
+      persona,
     };
     const { data, error: insErr } = await supabase
       .from('gains_checks')
@@ -120,7 +139,7 @@ function GainsCheck() {
       return;
     }
     setCheckId(data.id as string);
-  }, [form]);
+  }, [form, persona]);
 
   useEffect(() => {
     if (!checkId) return;
@@ -186,8 +205,10 @@ function GainsCheck() {
       return {
         icon: '🏆',
         label: `Legend · ${d.name ?? ''}`,
-        sub: 'random rival picked',
-        desc: `Picks a random bodybuilding legend (${d.name ?? ''}) and a photo of them to size you up against.`,
+        sub: d.matched ? 'closest match picked' : 'random rival picked',
+        desc: d.matched
+          ? `Finds the bodybuilding legend whose stats are closest to yours (${d.name ?? ''}) to size you up against.`
+          : `Picks a random bodybuilding legend (${d.name ?? ''}) — you gave no stats to match on.`,
         tokens: null,
       };
     if (e.stage === 'tool')
@@ -324,6 +345,27 @@ function GainsCheck() {
         </div>
       )}
 
+      <div className="rounded-lg border p-4">
+        <div className="mb-2 text-sm text-muted-foreground">Pick your coach</div>
+        <div className="grid grid-cols-3 gap-2">
+          {PERSONAS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => setPersona(p.key)}
+              disabled={busy}
+              className={`flex flex-col items-center gap-0.5 rounded-md border px-2 py-3 text-center transition-colors disabled:opacity-50 ${
+                persona === p.key ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+              }`}
+            >
+              <span className="text-2xl">{p.emoji}</span>
+              <span className="text-sm font-medium">{p.label}</span>
+              <span className="text-xs text-muted-foreground">{p.blurb}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
         {(
           [
@@ -358,15 +400,13 @@ function GainsCheck() {
       {error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
       {result && status === 'done' && (
-        <div
-          ref={resultRef}
-          className={`scroll-mt-4 rounded-xl border-4 p-6 text-center ${
-            result.passed ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'
-          }`}
-        >
+        <div ref={resultRef} className={`scroll-mt-4 rounded-xl border-4 p-6 text-center ${verdictTheme(result).border} ${verdictTheme(result).bg}`}>
+          {result.persona && (
+            <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Coach: {result.persona}</div>
+          )}
           <div
-            className={`text-5xl font-extrabold ${result.passed ? 'text-green-500' : 'text-red-500'}`}
-            style={result.passed ? undefined : { animation: 'gainsflash 0.5s steps(1) infinite' }}
+            className={`text-5xl font-extrabold ${verdictTheme(result).text}`}
+            style={verdictTheme(result).flash ? { animation: 'gainsflash 0.5s steps(1) infinite' } : undefined}
           >
             {result.headline}
           </div>
@@ -374,7 +414,7 @@ function GainsCheck() {
             {result.gif_url ? (
               <img src={result.gif_url} alt={result.headline} className="max-h-72 rounded-lg" />
             ) : (
-              <div className="text-7xl">{result.passed ? '💪🔥' : '🐕📢'}</div>
+              <div className="text-7xl">{verdictTheme(result).emoji}</div>
             )}
           </div>
           <p className="mt-4 text-lg font-medium">{result.reason}</p>
@@ -392,7 +432,12 @@ function GainsCheck() {
 
       {result && status === 'done' && result.legend && (
         <div className="rounded-xl border p-4">
-          <div className="mb-3 text-sm font-medium">🏆 You vs {result.legend.name}</div>
+          <div className="mb-3 text-sm font-medium">
+            🏆 You vs {result.legend.name}
+            <span className="ml-2 font-normal text-muted-foreground">
+              {result.legend.matched ? '· your closest match' : '· random rival'}
+            </span>
+          </div>
           <div className="flex flex-col gap-4 sm:flex-row">
             {result.legend.image_url && (
               <img

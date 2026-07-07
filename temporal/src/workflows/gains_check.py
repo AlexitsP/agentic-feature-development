@@ -12,23 +12,29 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
-    from ..agents.tools.gains_tools import TOOLS
+    from ..agents.tools.gains_tools import TOOLS, get_persona
 
 MAX_ROUNDS = 5
 _ACTIVITY_TIMEOUT = timedelta(seconds=30)
 
-_SYSTEM = (
-    "You are a loud, funny bodybuilding coach (think Ronnie Coleman / Arnold). "
-    "You are given a user's tracked fitness numbers as JSON: weight_kg, body_fat_pct, "
-    "calories, protein_g. Decide if they are TRACKING and DOING IT RIGHT.\n"
-    "- NOT TRACKING (fail) if calories or protein_g is missing, null, or 0. Then headline "
-    "'YOU SHOULD', sound 'shame', and a scolding spoken_line.\n"
-    "- If tracking, judge: protein_g >= 1.6 * weight_kg is solid (if weight is missing, "
-    ">= 140 g is solid); calories should be > 0; body_fat_pct should be plausible (0-60). "
-    "If solid -> pass: headline 'YEAH BUDDY!' or 'LIGHTWEIGHT BABY!', sound 'hype', a "
-    "hype spoken_line (a Ronnie Coleman / Arnold catchphrase).\n"
-    "Call submit_verdict exactly once with your decision. Keep it fun."
-)
+
+def _system_prompt(persona: dict) -> str:
+    return (
+        f"You are {persona['voice']}. "
+        "You are given a user's tracked fitness numbers as JSON: weight_kg, body_fat_pct, "
+        "calories, protein_g. Decide if they are TRACKING and DOING IT RIGHT.\n"
+        "- NOT TRACKING (fail, fail_kind='not_tracking') if calories or protein_g is missing, "
+        "null, or 0 — they aren't even logging. Then headline 'YOU SHOULD', sound 'shame', and a "
+        "scolding spoken_line.\n"
+        "- TRACKING BUT SLACKING (fail, fail_kind='slacking') if they DID log real numbers but "
+        "they're weak: protein_g < 1.6 * weight_kg (or < 140 g if weight is missing), or calories "
+        "are implausibly low. Then headline 'DO BETTER', sound 'shame', a spoken_line that pushes "
+        "them to step it up.\n"
+        "- DOING IT RIGHT (pass): protein_g >= 1.6 * weight_kg is solid (>= 140 g if weight is "
+        "missing); calories > 0; body_fat_pct plausible (0-60). Then pass: headline 'YEAH BUDDY!' "
+        "or 'LIGHTWEIGHT BABY!', sound 'hype', a hype spoken_line (a catchphrase in your voice).\n"
+        "Always set fail_kind on a fail. Call submit_verdict exactly once with your decision. Stay in character."
+    )
 
 
 @workflow.defn
@@ -46,8 +52,9 @@ class GainsCheckWorkflow:
             return {"check_id": check_id, "error": str(exc)}
 
     async def _execute(self, check_id: str, user_input: dict) -> dict:
+        persona = get_persona(user_input.get("persona"))
         messages: list[dict] = [
-            {"role": "system", "content": _SYSTEM},
+            {"role": "system", "content": _system_prompt(persona)},
             {"role": "user", "content": f"Here are my numbers: {json.dumps(user_input)}"},
         ]
         steps: list[dict] = []
@@ -66,28 +73,31 @@ class GainsCheckWorkflow:
         await emit(
             "dispatched",
             "Temporal · GainsCheckWorkflow",
-            {"via": "poller claim", "task_queue": "main"},
+            {"via": "poller claim", "task_queue": "main", "persona": persona["label"]},
         )
 
-        # Pick a random legend to stack the user up against.
+        # Pick the legend whose stats are closest to the user's numbers.
         legend = await workflow.execute_activity(
-            "pick_legend", start_to_close_timeout=_ACTIVITY_TIMEOUT
+            "pick_legend", args=[user_input], start_to_close_timeout=_ACTIVITY_TIMEOUT
+        )
+        match_phrase = (
+            "your closest match among the legends" if legend.get("matched") else "a random legend (you gave no stats to match on)"
         )
         messages.append(
             {
                 "role": "user",
                 "content": (
-                    f"Also compare me to {legend['name']} — contest weight {legend['weight_kg']} kg, "
-                    f"~{legend['body_fat_pct']}% body fat, height {legend['height_cm']} cm "
-                    f"({legend['fun_fact']}). In legend_quip, tell me in a funny way how close "
-                    "(or hilariously far) my numbers are to theirs."
+                    f"Also compare me to {legend['name']} — {match_phrase} — contest weight "
+                    f"{legend['weight_kg']} kg, ~{legend['body_fat_pct']}% body fat, height "
+                    f"{legend['height_cm']} cm ({legend['fun_fact']}). In legend_quip, tell me in a "
+                    "funny way how close (or hilariously far) my numbers are to theirs."
                 ),
             }
         )
         await emit(
             "legend",
             f"Legend · {legend['name']}",
-            {"name": legend["name"], "found": bool(legend.get("image_url"))},
+            {"name": legend["name"], "found": bool(legend.get("image_url")), "matched": bool(legend.get("matched"))},
         )
 
         for rnd in range(MAX_ROUNDS):
@@ -139,13 +149,19 @@ class GainsCheckWorkflow:
                     continue
 
                 passed = bool(args.get("passed"))
+                fail_kind = args.get("fail_kind") if not passed else None
+                if not passed and fail_kind not in ("not_tracking", "slacking"):
+                    fail_kind = "not_tracking"
+                default_headline = "YEAH BUDDY!" if passed else ("DO BETTER" if fail_kind == "slacking" else "YOU SHOULD")
                 result = {
                     "passed": passed,
-                    "headline": args.get("headline") or ("YEAH BUDDY!" if passed else "YOU SHOULD"),
+                    "fail_kind": fail_kind,
+                    "headline": args.get("headline") or default_headline,
                     "spoken_line": args.get("spoken_line") or "",
                     "gif_url": None,
                     "sound": args.get("sound") or ("hype" if passed else "shame"),
                     "reason": args.get("reason") or "",
+                    "persona": persona["label"],
                     "steps": steps,
                     "legend": {
                         "name": legend["name"],
@@ -154,13 +170,15 @@ class GainsCheckWorkflow:
                         "body_fat_pct": legend["body_fat_pct"],
                         "fun_fact": legend["fun_fact"],
                         "image_url": legend.get("image_url"),
+                        "matched": bool(legend.get("matched")),
                         "quip": args.get("legend_quip") or "",
                     },
                 }
 
-                # Deterministic themed GIF: Ronnie/Arnold on a pass, a dog on a fail.
+                # Deterministic themed GIF: Ronnie/Arnold on a pass; on a fail the
+                # GIF depends on the kind (angry dog vs disappointed "come on").
                 gif = await workflow.execute_activity(
-                    "fetch_verdict_gif", args=[passed], start_to_close_timeout=_ACTIVITY_TIMEOUT
+                    "fetch_verdict_gif", args=[passed, fail_kind], start_to_close_timeout=_ACTIVITY_TIMEOUT
                 )
                 result["gif_url"] = gif.get("url")
                 # On a pass, the headline + spoken line are a meme quote from the
@@ -168,16 +186,17 @@ class GainsCheckWorkflow:
                 if passed and gif.get("quote"):
                     result["headline"] = gif["quote"]
                     result["spoken_line"] = gif["quote"]
-                steps.append({"tool": "fetch_verdict_gif", "args": {"passed": passed}, "result": gif})
+                steps.append({"tool": "fetch_verdict_gif", "args": {"passed": passed, "fail_kind": fail_kind}, "result": gif})
                 await emit(
                     "tool",
                     "Giphy · fetch GIF",
                     {"query": gif.get("query"), "source": gif.get("source"), "subject": gif.get("subject"), "found": bool(gif.get("url"))},
                 )
 
+                style = persona["hype_style"] if passed else persona["shame_style"]
                 audio_b64 = await workflow.execute_activity(
                     "synthesize_speech",
-                    args=[result["spoken_line"], passed],
+                    args=[result["spoken_line"], style, passed],
                     start_to_close_timeout=timedelta(seconds=30),
                 )
                 result["audio_b64"] = audio_b64
@@ -186,7 +205,7 @@ class GainsCheckWorkflow:
                     "Azure Speech · neural TTS",
                     {
                         "voice": "en-US-DavisNeural",
-                        "style": "excited" if passed else "angry",
+                        "style": style,
                         "bytes": (len(audio_b64) * 3 // 4) if audio_b64 else 0,
                     },
                 )
@@ -200,7 +219,42 @@ class GainsCheckWorkflow:
                 )
                 return {"check_id": check_id, "result": result}
 
-        await workflow.execute_activity(
-            "finalize_gains", args=[check_id, "error", None, "max rounds exceeded"], start_to_close_timeout=_ACTIVITY_TIMEOUT
+        # Max rounds exceeded (rare — the verdict tool is forced). Rather than a
+        # bare error, hand back a fun canned verdict so the demo never dead-ends.
+        return await self._fallback_verdict(check_id, persona, legend, steps, emit)
+
+    async def _fallback_verdict(self, check_id, persona, legend, steps, emit) -> dict:
+        gif = await workflow.execute_activity(
+            "fetch_verdict_gif", args=[False, "slacking"], start_to_close_timeout=_ACTIVITY_TIMEOUT
         )
-        return {"check_id": check_id, "error": "max rounds exceeded"}
+        spoken = "The coach got distracted counting reps. Log it clean and run it back!"
+        result = {
+            "passed": False,
+            "fail_kind": "slacking",
+            "headline": "RUN IT BACK",
+            "spoken_line": spoken,
+            "gif_url": gif.get("url"),
+            "sound": "shame",
+            "reason": "The coach couldn't lock in a verdict — punch in your numbers and check again.",
+            "persona": persona["label"],
+            "steps": steps,
+            "legend": {
+                "name": legend["name"],
+                "weight_kg": legend["weight_kg"],
+                "height_cm": legend["height_cm"],
+                "body_fat_pct": legend["body_fat_pct"],
+                "fun_fact": legend["fun_fact"],
+                "image_url": legend.get("image_url"),
+                "matched": bool(legend.get("matched")),
+                "quip": f"We didn't get to size you up against {legend['name']} this time — run it back!",
+            },
+        }
+        audio_b64 = await workflow.execute_activity(
+            "synthesize_speech", args=[spoken, persona["shame_style"], False], start_to_close_timeout=timedelta(seconds=30)
+        )
+        result["audio_b64"] = audio_b64
+        await emit("finalized", "Supabase · fallback verdict saved", {"passed": False, "headline": result["headline"]})
+        await workflow.execute_activity(
+            "finalize_gains", args=[check_id, "done", result, None], start_to_close_timeout=_ACTIVITY_TIMEOUT
+        )
+        return {"check_id": check_id, "result": result}
