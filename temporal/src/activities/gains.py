@@ -30,6 +30,40 @@ def search_gif(query: str) -> dict[str, Any]:
 
 
 @activity.defn
+def fetch_verdict_gif(passed: bool) -> dict[str, Any]:
+    """Fetch a themed GIF for the verdict, plus (on a pass) the matching meme quote.
+
+    On a pass, GIF + quote come from the same legend (Ronnie or Arnold) so the
+    on-screen/spoken line matches the GIF. On a fail, a dog.
+    """
+    import random
+
+    if passed:
+        subject = random.choice(list(gains_tools.HYPE_SUBJECTS))
+        data = gains_tools.HYPE_SUBJECTS[subject]
+        result = gains_tools.search_gif(random.choice(data["queries"]))
+        result["subject"] = subject
+        result["quote"] = random.choice(data["quotes"])
+        return result
+
+    result = gains_tools.search_gif(random.choice(gains_tools.SHAME_QUERIES))
+    result["subject"] = None
+    result["quote"] = None
+    return result
+
+
+@activity.defn
+def pick_legend() -> dict[str, Any]:
+    """Pick a random bodybuilding legend and attach a GIF of them."""
+    import random
+
+    legend = dict(random.choice(gains_tools.LEGENDS))
+    gif = gains_tools.search_gif(legend["gif_query"])
+    legend["image_url"] = gif.get("url")
+    return legend
+
+
+@activity.defn
 def synthesize_speech(text: str, hype: bool) -> str | None:
     """Neural TTS via Azure Speech. Returns base64 MP3, or None if unconfigured/failed."""
     key = settings.azure_speech_key

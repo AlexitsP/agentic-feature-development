@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as GainsRouteImport } from './routes/gains'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EntitiesEntityTypeIndexRouteImport } from './routes/entities/$entityType/index'
 import { Route as EntitiesEntityTypeIdRouteImport } from './routes/entities/$entityType/$id'
 
+const GainsRoute = GainsRouteImport.update({
+  id: '/gains',
+  path: '/gains',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,36 +37,56 @@ const EntitiesEntityTypeIdRoute = EntitiesEntityTypeIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/gains': typeof GainsRoute
   '/entities/$entityType/$id': typeof EntitiesEntityTypeIdRoute
   '/entities/$entityType': typeof EntitiesEntityTypeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/gains': typeof GainsRoute
   '/entities/$entityType/$id': typeof EntitiesEntityTypeIdRoute
   '/entities/$entityType': typeof EntitiesEntityTypeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/gains': typeof GainsRoute
   '/entities/$entityType/$id': typeof EntitiesEntityTypeIdRoute
   '/entities/$entityType/': typeof EntitiesEntityTypeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/entities/$entityType/$id' | '/entities/$entityType'
+  fullPaths:
+    | '/'
+    | '/gains'
+    | '/entities/$entityType/$id'
+    | '/entities/$entityType'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/entities/$entityType/$id' | '/entities/$entityType'
-  id: '__root__' | '/' | '/entities/$entityType/$id' | '/entities/$entityType/'
+  to: '/' | '/gains' | '/entities/$entityType/$id' | '/entities/$entityType'
+  id:
+    | '__root__'
+    | '/'
+    | '/gains'
+    | '/entities/$entityType/$id'
+    | '/entities/$entityType/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GainsRoute: typeof GainsRoute
   EntitiesEntityTypeIdRoute: typeof EntitiesEntityTypeIdRoute
   EntitiesEntityTypeIndexRoute: typeof EntitiesEntityTypeIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/gains': {
+      id: '/gains'
+      path: '/gains'
+      fullPath: '/gains'
+      preLoaderRoute: typeof GainsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,6 +113,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GainsRoute: GainsRoute,
   EntitiesEntityTypeIdRoute: EntitiesEntityTypeIdRoute,
   EntitiesEntityTypeIndexRoute: EntitiesEntityTypeIndexRoute,
 }
