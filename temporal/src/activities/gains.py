@@ -30,47 +30,60 @@ def search_gif(query: str) -> dict[str, Any]:
 
 
 @activity.defn
-def fetch_verdict_gif(passed: bool) -> dict[str, Any]:
+def fetch_verdict_gif(passed: bool, fail_kind: str | None = None) -> dict[str, Any]:
     """Fetch a themed GIF for the verdict, plus (on a pass) the matching meme quote.
 
     On a pass, GIF + quote come from the same legend (Ronnie or Arnold) so the
-    on-screen/spoken line matches the GIF. On a fail, a dog.
+    on-screen/spoken line matches the GIF. On a fail, the GIF depends on the
+    kind: 'not_tracking' -> angry dog, 'slacking' -> a disappointed "come on".
+    A curated CDN GIF is used whenever the live search comes back empty, so a
+    themed GIF ALWAYS shows.
     """
     import random
 
     if passed:
         subject = random.choice(list(gains_tools.HYPE_SUBJECTS))
         data = gains_tools.HYPE_SUBJECTS[subject]
-        result = gains_tools.search_gif(random.choice(data["queries"]))
+        result = gains_tools.search_gif(random.choice(data["queries"]), fallback_query=subject)
+        if not result.get("url"):
+            result["url"] = gains_tools.fallback_gif_url(subject)
+            result["source"] = "fallback"
         result["subject"] = subject
         result["quote"] = random.choice(data["quotes"])
+        result["fail_kind"] = None
         return result
 
-    result = gains_tools.search_gif(random.choice(gains_tools.SHAME_QUERIES))
+    kind = fail_kind if fail_kind in ("not_tracking", "slacking") else "not_tracking"
+    result = gains_tools.search_gif(gains_tools.shame_query(kind))
+    if not result.get("url"):
+        result["url"] = gains_tools.fallback_gif_url(kind)
+        result["source"] = "fallback"
     result["subject"] = None
     result["quote"] = None
+    result["fail_kind"] = kind
     return result
 
 
 @activity.defn
-def pick_legend() -> dict[str, Any]:
-    """Pick a random bodybuilding legend and attach a GIF of them."""
-    import random
-
-    legend = dict(random.choice(gains_tools.LEGENDS))
+def pick_legend(user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Pick the legend closest to the user's numbers and attach a GIF of them."""
+    legend = gains_tools.pick_closest_legend(user_input)
     gif = gains_tools.search_gif(legend["gif_query"])
     legend["image_url"] = gif.get("url")
     return legend
 
 
 @activity.defn
-def synthesize_speech(text: str, hype: bool) -> str | None:
-    """Neural TTS via Azure Speech. Returns base64 MP3, or None if unconfigured/failed."""
+def synthesize_speech(text: str, style: str, hype: bool) -> str | None:
+    """Neural TTS via Azure Speech. Returns base64 MP3, or None if unconfigured/failed.
+
+    ``style`` is an mstts express-as style (excited/shouting/cheerful/angry/hopeful)
+    chosen from the coach persona; ``hype`` only nudges the pitch up on a pass.
+    """
     key = settings.azure_speech_key
     region = settings.azure_speech_region
     if not key or not region or not text:
         return None
-    style = "excited" if hype else "angry"
     pitch = "+12%" if hype else "-6%"
     ssml = (
         "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' "
