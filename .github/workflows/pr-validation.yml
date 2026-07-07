@@ -60,13 +60,16 @@ jobs:
         working-directory: temporal
 
       - name: Test Temporal suite
-        # Skip only when there are genuinely no tests (template portability).
+        working-directory: temporal
+        # Fail loudly if the suite ever disappears — a green "tests" check that
+        # runs zero assertions is worse than no check. Then run the real suite.
         run: |
-          if [ -z "$(find temporal/tests -name 'test_*.py' -print -quit 2>/dev/null)" ]; then
-            echo "## ℹ️ Temporal tests skipped — no test files present" >> "$GITHUB_STEP_SUMMARY"
-          else
-            python -m pytest temporal/tests -v
+          if [ -z "$(find tests -name 'test_*.py' -print -quit 2>/dev/null)" ]; then
+            echo "## ❌ No Temporal tests found — failing on purpose" >> "$GITHUB_STEP_SUMMARY"
+            echo "temporal/tests contains no test_*.py files; the suite must not silently pass." >&2
+            exit 1
           fi
+          python -m pytest tests -v
 
   validation-summary:
     name: Summary
