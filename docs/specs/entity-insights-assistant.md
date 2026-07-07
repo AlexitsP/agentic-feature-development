@@ -13,7 +13,7 @@ on that entity. A Temporal workflow runs the deployed Azure OpenAI model
 the entity's own data from Supabase, then returns a structured insight. The UI
 shows each step of the run as it happens, so the answer is transparent and
 trustworthy. This is the first end-to-end demonstration of the model-integration
-layer wired in [ADR pending] and `temporal/src/agents/model_client.py`.
+layer wired in ADR-0001 and `temporal/src/agents/model_client.py`.
 
 ## Goals
 
@@ -156,6 +156,6 @@ reviewable PR against `main`. No production deployment.
 
 - Spec template: `Dev day 1 & 2 resources/SPEC_TEMPLATE.md`
 - Model client: `temporal/src/agents/model_client.py`
-- ADR (workflow shape + model hosting): to be written in Step 4
+- ADR (workflow shape + model hosting): `docs/adrs/0001-entity-insights-workflow-and-model-hosting.md`
 - Reference patterns: `wynne-lvl-3` operations-factory agents; spec-kit
   spec/plan discipline; AI-DLC human-gated stages
