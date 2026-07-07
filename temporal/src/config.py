@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # auth mode: "auto" (Entra first, key fallback) | "entra" | "key"
     azure_openai_auth: str = Field("auto", env="AZURE_OPENAI_AUTH")
 
+    # Giphy API key for the Gains Check demo (optional; falls back to curated GIFs).
+    giphy_api_key: str = Field("", env="GIPHY_API_KEY")
+
     class Config:
         case_sensitive = False
 

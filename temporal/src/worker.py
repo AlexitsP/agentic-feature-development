@@ -6,9 +6,10 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from .config import settings
-from .activities import supabase_core, notifications, insights
+from .activities import supabase_core, notifications, insights, gains
 from .workflows.example.approval_workflow import ApprovalWorkflow
 from .workflows.entity_insight import EntityInsightWorkflow
+from .workflows.gains_check import GainsCheckWorkflow
 from .runs.poller import poll_loop
 
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +24,7 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue=settings.temporal_task_queue,
-        workflows=[ApprovalWorkflow, EntityInsightWorkflow],
+        workflows=[ApprovalWorkflow, EntityInsightWorkflow, GainsCheckWorkflow],
         activities=[
             supabase_core.create_entity,
             supabase_core.update_entity_scd2,
@@ -36,6 +37,8 @@ async def main() -> None:
             insights.run_tool,
             insights.record_step,
             insights.finalize_run,
+            gains.search_gif,
+            gains.finalize_gains,
         ],
         activity_executor=activity_executor,
     )
