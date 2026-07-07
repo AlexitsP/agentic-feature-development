@@ -13,11 +13,13 @@ export const Route = createFileRoute('/gains')({
   component: GainsCheck,
 });
 
-// "Meta" stats about building this whole app with AI (from Claude Code /cost).
+// "Meta" stats for the whole AI build session (from Claude Code /cost).
+// Note: the 171M cache-read tokens are the conversation re-read each turn, not
+// unique work — so they're shown separately from newly-generated tokens.
 const BUILD_STATS = {
   time: '3h 59m (2h 8m API)',
-  tokens: '≈ 172M (incl. cache)',
   cost: '$107.84',
+  tokens: '~475k generated · 171M cache reads',
 };
 
 interface GainsResult {
@@ -89,6 +91,7 @@ function GainsCheck() {
   const [events, setEvents] = useState<TraceEvent[]>([]);
   const startingRef = useRef(false);
   const activeStepRef = useRef<HTMLLIElement | null>(null);
+  const resultRef = useRef<HTMLDivElement | null>(null);
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v));
 
@@ -250,21 +253,29 @@ function GainsCheck() {
     activeStepRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [events.length, status]);
 
+  // When the verdict lands, scroll down to it.
+  useEffect(() => {
+    if (status === 'done' && result) {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [status, result]);
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <style>{`@keyframes gainsflash{0%,49%{opacity:1}50%,100%{opacity:.15}}`}</style>
       <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-muted/30 px-4 py-2 text-sm">
+        <span className="w-full text-xs text-muted-foreground">Built by AI in one session (everything, not just this page):</span>
         <span>
-          ⏱️ <span className="text-muted-foreground">Time to build this app:</span>{' '}
+          ⏱️ <span className="text-muted-foreground">Built in:</span>{' '}
           <span className="font-semibold">{BUILD_STATS.time}</span>
         </span>
         <span>
-          🪙 <span className="text-muted-foreground">Tokens to build this app:</span>{' '}
-          <span className="font-semibold">{BUILD_STATS.tokens}</span>
+          💵 <span className="text-muted-foreground">Cost:</span>{' '}
+          <span className="font-semibold">{BUILD_STATS.cost}</span>
         </span>
         <span>
-          💵 <span className="text-muted-foreground">Cost to build this app:</span>{' '}
-          <span className="font-semibold">{BUILD_STATS.cost}</span>
+          🪙 <span className="text-muted-foreground">Tokens:</span>{' '}
+          <span className="font-semibold">{BUILD_STATS.tokens}</span>
         </span>
       </div>
 
@@ -348,7 +359,8 @@ function GainsCheck() {
 
       {result && status === 'done' && (
         <div
-          className={`rounded-xl border-4 p-6 text-center ${
+          ref={resultRef}
+          className={`scroll-mt-4 rounded-xl border-4 p-6 text-center ${
             result.passed ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'
           }`}
         >

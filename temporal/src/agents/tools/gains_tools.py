@@ -66,13 +66,28 @@ TOOLS: list[dict[str, Any]] = [
     },
 ]
 
-# Themed GIF search terms. Pass = bodybuilding legends; fail = doghouse.
-HYPE_QUERIES = [
-    "Ronnie Coleman yeah buddy",
-    "Ronnie Coleman lightweight",
-    "Arnold Schwarzenegger flexing",
-    "Arnold Schwarzenegger pump",
-]
+# Pass-verdict subjects. The GIF and the on-screen/spoken line come from the
+# SAME person, so the meme quote always matches the GIF that's shown.
+HYPE_SUBJECTS = {
+    "Ronnie Coleman": {
+        "queries": ["Ronnie Coleman yeah buddy", "Ronnie Coleman lightweight", "Ronnie Coleman deadlift"],
+        "quotes": [
+            "YEAH BUDDY!",
+            "LIGHTWEIGHT, BABY!",
+            "AIN'T NOTHIN' BUT A PEANUT!",
+            "EVERYBODY WANNA BE A BODYBUILDER, BUT DON'T NOBODY WANNA LIFT NO HEAVY-ASS WEIGHT!",
+        ],
+    },
+    "Arnold Schwarzenegger": {
+        "queries": ["Arnold Schwarzenegger flexing", "Arnold Schwarzenegger pump", "Arnold Schwarzenegger bodybuilding"],
+        "quotes": [
+            "I'LL BE BACK... FOR ANOTHER SET!",
+            "GET TO DA CHOPPA... AND THEN THE SQUAT RACK!",
+            "COME WITH ME IF YOU WANT TO LIFT!",
+            "THE PUMP IS THE GREATEST FEELING!",
+        ],
+    },
+}
 SHAME_QUERIES = ["angry dog barking", "disappointed dog", "sad dog"]
 
 # Legends to stack the user up against. Stats are approximate contest condition.
@@ -91,4 +106,12 @@ LEGENDS = [
      "gif_query": "Chris Bumstead", "fun_fact": "'CBum' — the Classic Physique king."},
     {"name": "Frank Zane", "weight_kg": 85, "height_cm": 175, "body_fat_pct": 5,
      "gif_query": "Frank Zane", "fun_fact": "3-time Mr. Olympia and the icon of aesthetics."},
+    {"name": "Iris Kyle", "weight_kg": 74, "height_cm": 168, "body_fat_pct": 6,
+     "gif_query": "Iris Kyle bodybuilder", "fun_fact": "10-time Ms. Olympia — the most decorated bodybuilder, period."},
+    {"name": "Dana Linn Bailey", "weight_kg": 63, "height_cm": 168, "body_fat_pct": 8,
+     "gif_query": "Dana Linn Bailey", "fun_fact": "The first-ever Women's Physique Olympia champion."},
+    {"name": "Andrea Shaw", "weight_kg": 77, "height_cm": 173, "body_fat_pct": 6,
+     "gif_query": "Andrea Shaw bodybuilder", "fun_fact": "Multiple-time Ms. Olympia who brought back mass and symmetry."},
+    {"name": "Cydney Gillon", "weight_kg": 60, "height_cm": 165, "body_fat_pct": 8,
+     "gif_query": "Cydney Gillon", "fun_fact": "Dominant multi-time Figure Olympia champion."},
 ]

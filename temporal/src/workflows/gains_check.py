@@ -163,11 +163,16 @@ class GainsCheckWorkflow:
                     "fetch_verdict_gif", args=[passed], start_to_close_timeout=_ACTIVITY_TIMEOUT
                 )
                 result["gif_url"] = gif.get("url")
+                # On a pass, the headline + spoken line are a meme quote from the
+                # SAME legend as the GIF (Ronnie or Arnold), not the model's text.
+                if passed and gif.get("quote"):
+                    result["headline"] = gif["quote"]
+                    result["spoken_line"] = gif["quote"]
                 steps.append({"tool": "fetch_verdict_gif", "args": {"passed": passed}, "result": gif})
                 await emit(
                     "tool",
                     "Giphy · fetch GIF",
-                    {"query": gif.get("query"), "source": gif.get("source"), "found": bool(gif.get("url"))},
+                    {"query": gif.get("query"), "source": gif.get("source"), "subject": gif.get("subject"), "found": bool(gif.get("url"))},
                 )
 
                 audio_b64 = await workflow.execute_activity(

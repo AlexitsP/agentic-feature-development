@@ -31,11 +31,25 @@ def search_gif(query: str) -> dict[str, Any]:
 
 @activity.defn
 def fetch_verdict_gif(passed: bool) -> dict[str, Any]:
-    """Fetch a themed GIF for the verdict: Ronnie/Arnold on a pass, a dog on a fail."""
+    """Fetch a themed GIF for the verdict, plus (on a pass) the matching meme quote.
+
+    On a pass, GIF + quote come from the same legend (Ronnie or Arnold) so the
+    on-screen/spoken line matches the GIF. On a fail, a dog.
+    """
     import random
 
-    query = random.choice(gains_tools.HYPE_QUERIES if passed else gains_tools.SHAME_QUERIES)
-    return gains_tools.search_gif(query)
+    if passed:
+        subject = random.choice(list(gains_tools.HYPE_SUBJECTS))
+        data = gains_tools.HYPE_SUBJECTS[subject]
+        result = gains_tools.search_gif(random.choice(data["queries"]))
+        result["subject"] = subject
+        result["quote"] = random.choice(data["quotes"])
+        return result
+
+    result = gains_tools.search_gif(random.choice(gains_tools.SHAME_QUERIES))
+    result["subject"] = None
+    result["quote"] = None
+    return result
 
 
 @activity.defn
