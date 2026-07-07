@@ -46,6 +46,40 @@ interface GainsResult {
   steps?: Array<{ tool: string; args: Record<string, unknown>; result: { query?: string; source?: string } }>;
 }
 
+// Explainer shown under the engine toggle — swaps with the selected mode.
+const MODE_INFO: Record<'guided' | 'agentic', { title: string; purpose: string; rows: [string, string][] }> = {
+  guided: {
+    title: '🎛️ Guided — a pipeline with an LLM inside it',
+    purpose: 'Predictable and demo-safe: the same inputs give consistent, on-brand results every time.',
+    rows: [
+      [
+        'How it works',
+        'The AI makes ONE structured decision — pass / fail and why — against explicit rules written into the prompt. Everything you then see and hear (the GIF, the meme quote, the rival legend, the voice style) is chosen by ordinary code from a curated library. One model call, no tool loop.',
+      ],
+      [
+        'Why have it',
+        'When results must be reliable — a live demo, a consistent look — you keep the entertainment-critical choices out of the model’s hands, so a pass always shows a real Ronnie/Arnold GIF and nothing ever goes off-brand.',
+      ],
+      ['What it means', 'The model classifies; deterministic code does the rest. Fast, cheap, repeatable — but not really “an agent.”'],
+    ],
+  },
+  agentic: {
+    title: '🤖 Agentic — the model drives',
+    purpose: 'Genuine autonomy: the model reasons for itself and uses real tools to build the whole verdict.',
+    rows: [
+      [
+        'How it works',
+        'No fixed formula. The model judges your numbers on its own and has a real GIF-search tool it decides when and how to call — its own search terms, as many times as it likes. It picks the GIF, chooses a rival legend and writes the comparison, writes the headline and spoken line, and even chooses the voice style. A true reason → search → decide loop (watch the trace above).',
+      ],
+      [
+        'Why have it',
+        'When you want adaptability, creativity and genuine tool use — the model can react to unusual inputs a fixed rule never anticipated — and you can accept more variability in exchange.',
+      ],
+      ['What it means', 'The model drives; code just runs the tools it asks for. That’s a real agent trajectory — occasionally an off-brand GIF or odd rival is the honest price of the autonomy.'],
+    ],
+  },
+};
+
 const PERSONAS = [
   { key: 'gymbro', emoji: '🗣️', label: 'Gym Bro', blurb: 'Loud hype, all caps' },
   { key: 'sergeant', emoji: '🎖️', label: 'Drill Sergeant', blurb: 'No excuses, soldier' },
@@ -332,6 +366,19 @@ function GainsCheck() {
               <span className="text-xs leading-snug text-muted-foreground">{blurb}</span>
             </button>
           ))}
+        </div>
+
+        <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm">
+          <div className="font-medium">{MODE_INFO[mode].title}</div>
+          <p className="mt-1 text-muted-foreground">{MODE_INFO[mode].purpose}</p>
+          <dl className="mt-3 space-y-2">
+            {MODE_INFO[mode].rows.map(([label, text]) => (
+              <div key={label} className="grid grid-cols-[7.5rem_1fr] gap-2">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
+                <dd className="leading-snug text-muted-foreground">{text}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </div>
 
