@@ -207,6 +207,84 @@ _WEIGHT_SCALE = 35.0
 _BF_SCALE = 12.0
 
 
+def legend_by_name(name: str | None) -> dict[str, Any] | None:
+    """Look a legend up by (fuzzy) name — reference data for the agentic path,
+    where the MODEL chooses which legend to compare against."""
+    if not name:
+        return None
+    n = name.strip().lower()
+    for l in LEGENDS:
+        ln = l["name"].lower()
+        if n == ln or n in ln or ln in n:
+            return l
+    return None
+
+
+def legend_roster_text() -> str:
+    """Compact roster the agentic model is given so it can pick a rival itself."""
+    return "; ".join(
+        f"{l['name']} ({l['weight_kg']}kg, {l['body_fat_pct']}% BF, {l['height_cm']}cm)" for l in LEGENDS
+    )
+
+
+# Neural-TTS express-as styles en-US-DavisNeural supports. In the agentic path
+# the MODEL chooses the emotional delivery from this set.
+VOICE_STYLES = ["excited", "shouting", "cheerful", "friendly", "angry", "hopeful", "sad"]
+
+
+# ── Agentic tool set ─────────────────────────────────────────────────────────
+# Unlike the guided TOOLS (a single forced submit_verdict), here the model gets a
+# REAL tool it chooses when/how to use, and submit_verdict is NOT forced — so the
+# model runs a genuine multi-step loop: reason -> search GIFs it picks -> decide.
+AGENTIC_TOOLS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_gif",
+            "description": (
+                "Search Giphy for a GIF and get a URL back. YOU choose the search terms. "
+                "Call it as many times as you like — e.g. one GIF that fits your verdict, "
+                "and one of the legend you compare against."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "search terms, e.g. 'Ronnie Coleman yeah buddy' or 'sad dog'"}
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "submit_verdict",
+            "description": "Return your final verdict. Call exactly once, after you've searched for any GIFs you want.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "passed": {"type": "boolean", "description": "true if, in your judgment, they're tracking and doing it right"},
+                    "fail_kind": {
+                        "type": "string",
+                        "enum": ["not_tracking", "slacking"],
+                        "description": "Only when passed is false: 'not_tracking' if they aren't logging calories/protein; 'slacking' if they log but the numbers are weak.",
+                    },
+                    "headline": {"type": "string", "description": "Big on-screen text in your voice"},
+                    "spoken_line": {"type": "string", "description": "What the voice should shout/say"},
+                    "reason": {"type": "string", "description": "One-line why, in character"},
+                    "gif_url": {"type": "string", "description": "A URL you got back from search_gif that fits the verdict. Empty string if none suitable."},
+                    "voice_style": {"type": "string", "enum": VOICE_STYLES, "description": "How the line should be spoken"},
+                    "legend_name": {"type": "string", "description": "The legend you chose to compare the user against"},
+                    "legend_comparison": {"type": "string", "description": "A funny comparison of the user's numbers to that legend's"},
+                    "legend_gif_url": {"type": "string", "description": "A URL from search_gif of that legend, or empty string"},
+                },
+                "required": ["passed", "headline", "spoken_line", "reason", "gif_url", "voice_style", "legend_name", "legend_comparison"],
+            },
+        },
+    },
+]
+
+
 def pick_closest_legend(user_input: dict[str, Any] | None) -> dict[str, Any]:
     """Pick the legend whose contest stats are nearest the user's numbers.
 

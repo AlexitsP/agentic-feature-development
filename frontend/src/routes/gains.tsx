@@ -25,6 +25,7 @@ const BUILD_STATS = {
 interface GainsResult {
   passed: boolean;
   fail_kind?: 'not_tracking' | 'slacking' | null;
+  mode?: 'guided' | 'agentic';
   headline: string;
   spoken_line: string;
   gif_url: string | null;
@@ -34,12 +35,12 @@ interface GainsResult {
   audio_b64?: string | null;
   legend?: {
     name: string;
-    weight_kg: number;
-    height_cm: number;
-    body_fat_pct: number;
+    weight_kg: number | null;
+    height_cm: number | null;
+    body_fat_pct: number | null;
     fun_fact: string;
     image_url: string | null;
-    matched?: boolean;
+    matched?: boolean | null;
     quip: string;
   } | null;
   steps?: Array<{ tool: string; args: Record<string, unknown>; result: { query?: string; source?: string } }>;
@@ -102,6 +103,7 @@ function playResult(r: GainsResult) {
 function GainsCheck() {
   const [form, setForm] = useState({ weight_kg: '', body_fat_pct: '', calories: '', protein_g: '' });
   const [persona, setPersona] = useState<string>('gymbro');
+  const [mode, setMode] = useState<'guided' | 'agentic'>('guided');
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<GainsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +128,7 @@ function GainsCheck() {
       calories: num(form.calories),
       protein_g: num(form.protein_g),
       persona,
+      mode,
     };
     const { data, error: insErr } = await supabase
       .from('gains_checks')
@@ -139,7 +142,7 @@ function GainsCheck() {
       return;
     }
     setCheckId(data.id as string);
-  }, [form, persona]);
+  }, [form, persona, mode]);
 
   useEffect(() => {
     if (!checkId) return;
@@ -305,6 +308,33 @@ function GainsCheck() {
         <p className="text-muted-foreground">Track your macros? The coach will let you know.</p>
       </div>
 
+      <div className="rounded-lg border p-4">
+        <div className="mb-2 text-sm text-muted-foreground">Engine</div>
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ['guided', '🎛️', 'Guided', 'Deterministic pipeline. Rule-based verdict, curated GIFs & quotes. Reliable.'],
+              ['agentic', '🤖', 'Agentic', 'The model reasons freely, picks & searches its own GIFs, chooses the rival & voice.'],
+            ] as const
+          ).map(([key, emoji, label, blurb]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMode(key)}
+              disabled={busy}
+              className={`flex flex-col gap-0.5 rounded-md border px-3 py-3 text-left transition-colors disabled:opacity-50 ${
+                mode === key ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+              }`}
+            >
+              <span className="text-sm font-medium">
+                {emoji} {label}
+              </span>
+              <span className="text-xs leading-snug text-muted-foreground">{blurb}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {showTrace && (
         <div className="rounded-lg border p-4">
           <div className="mb-2 flex items-center justify-between text-sm">
@@ -401,9 +431,12 @@ function GainsCheck() {
 
       {result && status === 'done' && (
         <div ref={resultRef} className={`scroll-mt-4 rounded-xl border-4 p-6 text-center ${verdictTheme(result).border} ${verdictTheme(result).bg}`}>
-          {result.persona && (
-            <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Coach: {result.persona}</div>
-          )}
+          <div className="mb-2 flex items-center justify-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+            {result.persona && <span>Coach: {result.persona}</span>}
+            <span className="rounded-full border px-2 py-0.5 normal-case">
+              {result.mode === 'agentic' ? '🤖 Agentic' : '🎛️ Guided'}
+            </span>
+          </div>
           <div
             className={`text-5xl font-extrabold ${verdictTheme(result).text}`}
             style={verdictTheme(result).flash ? { animation: 'gainsflash 0.5s steps(1) infinite' } : undefined}
@@ -435,7 +468,11 @@ function GainsCheck() {
           <div className="mb-3 text-sm font-medium">
             🏆 You vs {result.legend.name}
             <span className="ml-2 font-normal text-muted-foreground">
-              {result.legend.matched ? '· your closest match' : '· random rival'}
+              {result.mode === 'agentic'
+                ? "· coach's pick"
+                : result.legend.matched
+                  ? '· your closest match'
+                  : '· random rival'}
             </span>
           </div>
           <div className="flex flex-col gap-4 sm:flex-row">
@@ -455,11 +492,11 @@ function GainsCheck() {
 
                 <div className="text-muted-foreground">Weight (kg)</div>
                 <div>{form.weight_kg || '—'}</div>
-                <div>{result.legend.weight_kg}</div>
+                <div>{result.legend.weight_kg ?? '—'}</div>
 
                 <div className="text-muted-foreground">Body fat (%)</div>
                 <div>{form.body_fat_pct || '—'}</div>
-                <div>{result.legend.body_fat_pct}</div>
+                <div>{result.legend.body_fat_pct ?? '—'}</div>
               </div>
               <p className="text-xs text-muted-foreground">{result.legend.fun_fact}</p>
             </div>
