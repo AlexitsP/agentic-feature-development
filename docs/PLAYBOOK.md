@@ -41,6 +41,47 @@ this loop only where durability/steps/streaming actually earn their cost.
 
 ---
 
+## Guardrails — MUST / MUST-NOT (binding)
+
+The non-negotiables distilled from the rest of this doc. A consumer repo activates these by
+declaring this section binding in its root agent file (see
+[§9 Adopt in a new repo](#9-adopt-in-a-new-repo-the-activation-kit)). If a rule genuinely doesn't
+apply to a given product, delete it explicitly — don't silently ignore it.
+
+**MUST**
+- **Read [§3](#3-the-feature-recipe-repeat-per-feature) before adding a feature; read
+  [§4](#4-the-landmine-table-read-before-you-debug) before debugging** an environment / provider /
+  orchestration failure.
+- **Branch off `main` for every change and open a PR.** Squash-merge orphans any commits pushed to
+  an already-merged branch — never reuse one.
+- In every new run/trace-table migration, include the **anon + authenticated grants, the
+  `service_role` grant, and `alter publication supabase_realtime add table`** — and confirm
+  PostgREST access before moving on.
+- Keep **workflows deterministic**; put **all** non-determinism (model calls, HTTP, randomness,
+  external services) in **activities**.
+- Wrap each workflow `run()` in a try/except that **finalizes the row `error`** — never leave a
+  stuck `running`.
+- **Register both** the workflow and every activity in the worker.
+- For reasoning-tier models: use a **completion-token budget, omit `temperature`, and force
+  `tool_choice`** (or nudge+continue) so the model actually calls the terminal tool.
+- Type Temporal params **`Any`** when they carry a union/opaque value (e.g. `tool_choice`).
+- **Verify features end-to-end** (insert a `pending` row → poll until `done`), not on
+  compile/lint/CI-green alone.
+- Keep the **LLM provider isolated behind the model client** so the host is swappable in one file.
+
+**MUST NOT**
+- **Never commit `.env` or any secret.** Never send the service-role key or a provider key to the
+  browser — the frontend uses the **anon key only**.
+- **Never let the browser talk to anything but Supabase** (no bespoke API, no exposed worker port).
+- **Never edit a shipped migration** — add a new timestamped one.
+- **Never rely on ad-hoc `docker run -v <host>:/app`** on Windows/WSL runtimes (mounts come up
+  empty) — `docker cp` or use the dev-mount override.
+- **Never mark work "done" on compile/CI-green** without an end-to-end check.
+- **Never provision paid cloud resources or take costly/outward-facing actions without explicit
+  confirmation.**
+
+---
+
 ## 1. Stand up the base stack (once per machine)
 
 The base is the shared template (Supabase CLI + Temporal + Vite/React). Getting it running:
@@ -280,6 +321,49 @@ On this stack the work is **not** dominated by writing feature code — it's the
 Budget accordingly: with §4 pre-empted and §3 templatized, a new feature on an already-stood-up
 stack is hours, not days. The first feature on a *fresh* stack is dominated by §1–§2 and the
 landmines, so front-load those.
+
+---
+
+## 9. Adopt in a new repo (the activation kit)
+
+**A doc in `docs/` binds nothing on its own** — a fresh agent only auto-loads the repo's *root*
+agent file. Activation (making an agent obey this playbook) is the **consumer repo's job**. Make
+it trivial and consistent:
+
+1. **Copy `docs/PLAYBOOK.md`** into the new repo's `docs/`.
+2. **Add the block below to the repo's root `AGENTS.md`** (the file agents auto-load; for Claude
+   Code you may name it `CLAUDE.md` — keep one canonical file). This is what turns the playbook
+   from reference into governance.
+3. **Fill the blanks** (`<PROJECT>`, ports/paths) and delete any guardrail that genuinely doesn't
+   apply. Keep the substance in the playbook — the root file stays a thin, binding pointer so the
+   rules live and version in one place.
+
+```markdown
+# <PROJECT> — Agent Contract
+
+**Governance:** `docs/PLAYBOOK.md` is BINDING, especially its "Guardrails — MUST / MUST-NOT"
+section. Load the relevant part before acting — don't ingest the whole doc every turn:
+- Adding/changing a feature      → read PLAYBOOK §3 (The Feature Recipe).
+- Debugging env/provider/orchestration → read PLAYBOOK §4 (The Landmine Table).
+- Change touching >1 component, a service, or a security/data/deploy boundary → check
+  `docs/adrs/` and add an ADR.
+
+**Non-negotiables (full list in the playbook's Guardrails section):**
+- Branch off `main`; open a PR; never reuse a merged branch.
+- Never commit `.env`/secrets; the browser uses the Supabase anon key only.
+- New run/trace tables: include anon+authenticated grants, the service_role grant, and the
+  realtime publication — then verify PostgREST access.
+- Workflows deterministic; all non-determinism in activities; wrap run() to finalize `error`.
+- Verify end-to-end (insert → poll `done`), not on CI-green.
+- Confirm before provisioning cloud resources or other costly/outward-facing actions.
+
+**Stack:** Supabase + Temporal + Vite/React + a hosted LLM. Local run + gotchas: ONBOARDING and
+PLAYBOOK §1/§4.
+```
+
+That keeps activation a **paste + two blanks**, not a rewrite — and the responsibility boundary
+stays exactly where it belongs: the playbook carries the knowledge and guardrails; the consumer
+repo declares them binding.
 
 ---
 
