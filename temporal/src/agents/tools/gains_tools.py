@@ -42,32 +42,20 @@ def search_gif(query: str, rating: str = "pg-13") -> dict[str, Any]:
         return {"url": None, "source": f"error:{type(exc).__name__}", "query": query}
 
 
-# OpenAI tool schemas. The agent fetches a GIF, then submits its verdict.
+# OpenAI tool schema. The model only decides the verdict; the workflow fetches
+# the themed GIF deterministically afterwards (guaranteed Ronnie/Arnold on a pass).
 TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "search_gif",
-            "description": "Fetch a GIF URL for a search query (e.g. 'Ronnie Coleman yeah buddy', 'angry dog barking').",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "submit_verdict",
-            "description": "Return the final verdict. Call exactly once, after fetching a GIF.",
+            "description": "Return the final verdict. Call exactly once.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "passed": {"type": "boolean", "description": "true if they are tracking and doing it right"},
                     "headline": {"type": "string", "description": "Big on-screen text, e.g. 'YEAH BUDDY!' or 'YOU SHOULD'"},
-                    "spoken_line": {"type": "string", "description": "What the browser voice shouts, e.g. a Ronnie Coleman catchphrase, or a scolding"},
-                    "gif_url": {"type": "string", "description": "The url returned by search_gif (empty string if none)"},
+                    "spoken_line": {"type": "string", "description": "What the voice shouts — a Ronnie Coleman / Arnold catchphrase on a pass, or a scolding on a fail"},
                     "sound": {"type": "string", "enum": ["hype", "shame"]},
                     "reason": {"type": "string", "description": "One-line why, coach voice"},
                 },
@@ -76,3 +64,12 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
 ]
+
+# Themed GIF search terms. Pass = bodybuilding legends; fail = doghouse.
+HYPE_QUERIES = [
+    "Ronnie Coleman yeah buddy",
+    "Ronnie Coleman lightweight",
+    "Arnold Schwarzenegger flexing",
+    "Arnold Schwarzenegger pump",
+]
+SHAME_QUERIES = ["angry dog barking", "disappointed dog", "sad dog"]

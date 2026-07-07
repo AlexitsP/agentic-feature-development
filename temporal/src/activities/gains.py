@@ -30,6 +30,15 @@ def search_gif(query: str) -> dict[str, Any]:
 
 
 @activity.defn
+def fetch_verdict_gif(passed: bool) -> dict[str, Any]:
+    """Fetch a themed GIF for the verdict: Ronnie/Arnold on a pass, a dog on a fail."""
+    import random
+
+    query = random.choice(gains_tools.HYPE_QUERIES if passed else gains_tools.SHAME_QUERIES)
+    return gains_tools.search_gif(query)
+
+
+@activity.defn
 def synthesize_speech(text: str, hype: bool) -> str | None:
     """Neural TTS via Azure Speech. Returns base64 MP3, or None if unconfigured/failed."""
     key = settings.azure_speech_key

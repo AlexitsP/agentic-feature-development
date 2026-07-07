@@ -146,18 +146,74 @@ function GainsCheck() {
 
   const backendSteps = events.map((e) => {
     const d = e.detail ?? {};
-    if (e.stage === 'dispatched') return { icon: '⚙️', label: 'Temporal', sub: String(d.via ?? 'dispatched'), tokens: null };
-    if (e.stage === 'reasoning') return { icon: '🧠', label: 'Azure · gpt-5-mini', sub: `reasoning · round ${d.round ?? ''}`, tokens: e.tokens };
-    if (e.stage === 'tool') return { icon: '🎬', label: 'Giphy', sub: `search_gif: ${d.query ?? ''}`, tokens: null };
-    if (e.stage === 'speech') return { icon: '🔊', label: 'Azure Speech', sub: `neural TTS · ${d.style ?? ''}`, tokens: null };
-    if (e.stage === 'finalized') return { icon: '💾', label: 'Supabase', sub: 'verdict saved', tokens: null };
-    return { icon: '•', label: e.label, sub: e.stage, tokens: e.tokens };
+    if (e.stage === 'dispatched')
+      return {
+        icon: '⚙️',
+        label: 'Temporal',
+        sub: String(d.via ?? 'dispatched'),
+        desc: 'A background worker picked up your request and started the automated workflow.',
+        tokens: null,
+      };
+    if (e.stage === 'reasoning')
+      return {
+        icon: '🧠',
+        label: 'Azure · gpt-5-mini',
+        sub: `reasoning · round ${d.round ?? ''}`,
+        desc: 'The AI model reads your numbers and decides its next move — look something up, or give the final verdict.',
+        tokens: e.tokens,
+      };
+    if (e.stage === 'tool')
+      return {
+        icon: '🎬',
+        label: 'Giphy',
+        sub: `search_gif: ${d.query ?? ''}`,
+        desc: `The agent fetches a matching GIF on the fly${d.query ? ` for “${d.query}”` : ''}.`,
+        tokens: null,
+      };
+    if (e.stage === 'speech')
+      return {
+        icon: '🔊',
+        label: 'Azure Speech',
+        sub: `neural TTS · ${d.style ?? ''}`,
+        desc: 'The verdict line is turned into an expressive spoken voice clip.',
+        tokens: null,
+      };
+    if (e.stage === 'finalized')
+      return {
+        icon: '💾',
+        label: 'Supabase',
+        sub: 'verdict saved',
+        desc: 'The finished verdict is saved back to the database.',
+        tokens: null,
+      };
+    return { icon: '•', label: e.label, sub: e.stage, desc: '', tokens: e.tokens };
   });
-  const steps: Array<{ icon: string; label: string; sub: string; tokens: number | null; done: boolean }> = [
-    { icon: '🖥️', label: 'Browser', sub: 'insert run row', tokens: null, done: status !== 'idle' },
-    { icon: '🗂️', label: 'Supabase', sub: 'queued (pending)', tokens: null, done: status !== 'idle' },
+  const steps: Array<{ icon: string; label: string; sub: string; desc: string; tokens: number | null; done: boolean }> = [
+    {
+      icon: '🖥️',
+      label: 'Browser',
+      sub: 'insert run row',
+      desc: 'Your numbers are packaged in the browser and sent off as a new request.',
+      tokens: null,
+      done: status !== 'idle',
+    },
+    {
+      icon: '🗂️',
+      label: 'Supabase',
+      sub: 'queued (pending)',
+      desc: 'The request waits in the database until a worker is ready to handle it.',
+      tokens: null,
+      done: status !== 'idle',
+    },
     ...backendSteps.map((s) => ({ ...s, done: true })),
-    { icon: '📡', label: 'Browser', sub: 'Realtime update', tokens: null, done: status === 'done' },
+    {
+      icon: '📡',
+      label: 'Browser',
+      sub: 'Realtime update',
+      desc: 'The result streams live back to your browser and appears on screen.',
+      tokens: null,
+      done: status === 'done',
+    },
   ];
   const totalTokens = events.reduce((n, e) => n + (e.tokens ?? 0), 0);
   const pct = status === 'done' ? 100 : Math.min(92, (steps.filter((s) => s.done).length / (steps.length + 1)) * 100);
@@ -180,6 +236,9 @@ function GainsCheck() {
               {busy && <span className="ml-2 animate-pulse">● live</span>}
             </span>
           </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Follow your request as it travels from the browser, through the AI agent and its tools, and back to the screen.
+          </p>
           <div className="mb-3 h-1.5 w-full overflow-hidden rounded bg-muted">
             <div className="h-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
           </div>
@@ -188,7 +247,7 @@ function GainsCheck() {
               <li key={i} className="flex items-center gap-1">
                 {i > 0 && <span className="text-muted-foreground">→</span>}
                 <div
-                  className={`flex min-w-[128px] flex-col rounded-md border px-3 py-2 text-xs transition-opacity ${
+                  className={`flex w-[200px] shrink-0 flex-col rounded-md border px-3 py-2 text-xs transition-opacity ${
                     s.done ? 'opacity-100' : 'opacity-40'
                   }`}
                 >
@@ -197,8 +256,9 @@ function GainsCheck() {
                     <span className="font-medium">{s.label}</span>
                   </div>
                   <span className="text-muted-foreground">{s.sub}</span>
+                  {s.desc && <span className="mt-1 leading-snug text-muted-foreground">{s.desc}</span>}
                   {s.tokens != null && (
-                    <span className="mt-1 inline-block w-fit rounded bg-secondary px-1.5 py-0.5">{s.tokens} tok</span>
+                    <span className="mt-1 inline-block w-fit rounded bg-secondary px-1.5 py-0.5">{s.tokens} tokens used</span>
                   )}
                 </div>
               </li>

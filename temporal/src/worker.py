@@ -38,6 +38,7 @@ async def main() -> None:
             insights.record_step,
             insights.finalize_run,
             gains.search_gif,
+            gains.fetch_verdict_gif,
             gains.finalize_gains,
             gains.record_gains_event,
             gains.synthesize_speech,

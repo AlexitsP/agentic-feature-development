@@ -22,15 +22,12 @@ _SYSTEM = (
     "You are given a user's tracked fitness numbers as JSON: weight_kg, body_fat_pct, "
     "calories, protein_g. Decide if they are TRACKING and DOING IT RIGHT.\n"
     "- NOT TRACKING (fail) if calories or protein_g is missing, null, or 0. Then headline "
-    "'YOU SHOULD', sound 'shame', a scolding spoken_line, and a gif query like "
-    "'angry dog barking' or 'disappointed'.\n"
+    "'YOU SHOULD', sound 'shame', and a scolding spoken_line.\n"
     "- If tracking, judge: protein_g >= 1.6 * weight_kg is solid (if weight is missing, "
     ">= 140 g is solid); calories should be > 0; body_fat_pct should be plausible (0-60). "
     "If solid -> pass: headline 'YEAH BUDDY!' or 'LIGHTWEIGHT BABY!', sound 'hype', a "
-    "hype spoken_line (a Ronnie Coleman / Arnold catchphrase), gif query like "
-    "'Ronnie Coleman yeah buddy' or 'Arnold Schwarzenegger flex'.\n"
-    "ALWAYS: first call search_gif with your chosen query, then call submit_verdict "
-    "with gif_url set to the url it returned (empty string if none). Keep it fun."
+    "hype spoken_line (a Ronnie Coleman / Arnold catchphrase).\n"
+    "Call submit_verdict exactly once with your decision. Keep it fun."
 )
 
 
@@ -119,51 +116,56 @@ class GainsCheckWorkflow:
                 except json.JSONDecodeError:
                     args = {}
 
-                if name == "submit_verdict":
-                    result = {
-                        "passed": bool(args.get("passed")),
-                        "headline": args.get("headline") or ("YEAH BUDDY!" if args.get("passed") else "YOU SHOULD"),
-                        "spoken_line": args.get("spoken_line") or "",
-                        "gif_url": args.get("gif_url") or None,
-                        "sound": args.get("sound") or ("hype" if args.get("passed") else "shame"),
-                        "reason": args.get("reason") or "",
-                        "steps": steps,
-                    }
-                    audio_b64 = await workflow.execute_activity(
-                        "synthesize_speech",
-                        args=[result["spoken_line"], result["passed"]],
-                        start_to_close_timeout=timedelta(seconds=30),
-                    )
-                    result["audio_b64"] = audio_b64
-                    await emit(
-                        "speech",
-                        "Azure Speech · neural TTS",
-                        {
-                            "voice": "en-US-DavisNeural",
-                            "style": "excited" if result["passed"] else "angry",
-                            "bytes": (len(audio_b64) * 3 // 4) if audio_b64 else 0,
-                        },
-                    )
-                    await emit(
-                        "finalized",
-                        "Supabase · verdict saved",
-                        {"passed": result["passed"], "headline": result["headline"]},
-                    )
-                    await workflow.execute_activity(
-                        "finalize_gains", args=[check_id, "done", result, None], start_to_close_timeout=_ACTIVITY_TIMEOUT
-                    )
-                    return {"check_id": check_id, "result": result}
+                if name != "submit_verdict":
+                    continue
 
+                passed = bool(args.get("passed"))
+                result = {
+                    "passed": passed,
+                    "headline": args.get("headline") or ("YEAH BUDDY!" if passed else "YOU SHOULD"),
+                    "spoken_line": args.get("spoken_line") or "",
+                    "gif_url": None,
+                    "sound": args.get("sound") or ("hype" if passed else "shame"),
+                    "reason": args.get("reason") or "",
+                    "steps": steps,
+                }
+
+                # Deterministic themed GIF: Ronnie/Arnold on a pass, a dog on a fail.
                 gif = await workflow.execute_activity(
-                    "search_gif", args=[args.get("query", "")], start_to_close_timeout=_ACTIVITY_TIMEOUT
+                    "fetch_verdict_gif", args=[passed], start_to_close_timeout=_ACTIVITY_TIMEOUT
                 )
-                steps.append({"tool": name, "args": args, "result": gif})
+                result["gif_url"] = gif.get("url")
+                steps.append({"tool": "fetch_verdict_gif", "args": {"passed": passed}, "result": gif})
                 await emit(
                     "tool",
-                    "Giphy · search_gif",
-                    {"query": args.get("query"), "source": gif.get("source"), "found": bool(gif.get("url"))},
+                    "Giphy · fetch GIF",
+                    {"query": gif.get("query"), "source": gif.get("source"), "found": bool(gif.get("url"))},
                 )
-                messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps(gif)})
+
+                audio_b64 = await workflow.execute_activity(
+                    "synthesize_speech",
+                    args=[result["spoken_line"], passed],
+                    start_to_close_timeout=timedelta(seconds=30),
+                )
+                result["audio_b64"] = audio_b64
+                await emit(
+                    "speech",
+                    "Azure Speech · neural TTS",
+                    {
+                        "voice": "en-US-DavisNeural",
+                        "style": "excited" if passed else "angry",
+                        "bytes": (len(audio_b64) * 3 // 4) if audio_b64 else 0,
+                    },
+                )
+                await emit(
+                    "finalized",
+                    "Supabase · verdict saved",
+                    {"passed": passed, "headline": result["headline"]},
+                )
+                await workflow.execute_activity(
+                    "finalize_gains", args=[check_id, "done", result, None], start_to_close_timeout=_ACTIVITY_TIMEOUT
+                )
+                return {"check_id": check_id, "result": result}
 
         await workflow.execute_activity(
             "finalize_gains", args=[check_id, "error", None, "max rounds exceeded"], start_to_close_timeout=_ACTIVITY_TIMEOUT
