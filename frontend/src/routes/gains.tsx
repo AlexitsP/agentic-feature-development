@@ -13,11 +13,11 @@ export const Route = createFileRoute('/gains')({
   component: GainsCheck,
 });
 
-// "Meta" stats about building this whole app with AI. Update these with the real
-// figures from Claude Code's /cost (they can only be measured on your side).
+// "Meta" stats about building this whole app with AI (from Claude Code /cost).
 const BUILD_STATS = {
-  time: 'TBD',
-  tokens: 'TBD',
+  time: '3h 59m (2h 8m API)',
+  tokens: '≈ 172M (incl. cache)',
+  cost: '$107.84',
 };
 
 interface GainsResult {
@@ -261,6 +261,10 @@ function GainsCheck() {
         <span>
           🪙 <span className="text-muted-foreground">Tokens to build this app:</span>{' '}
           <span className="font-semibold">{BUILD_STATS.tokens}</span>
+        </span>
+        <span>
+          💵 <span className="text-muted-foreground">Cost to build this app:</span>{' '}
+          <span className="font-semibold">{BUILD_STATS.cost}</span>
         </span>
       </div>
 
