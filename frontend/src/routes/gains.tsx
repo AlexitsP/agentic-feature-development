@@ -20,6 +20,7 @@ interface GainsResult {
   gif_url: string | null;
   sound: 'hype' | 'shame';
   reason: string;
+  audio_b64?: string | null;
   steps?: Array<{ tool: string; args: Record<string, unknown>; result: { query?: string; source?: string } }>;
 }
 
@@ -46,6 +47,21 @@ function speak(line: string, hype: boolean) {
   } catch {
     /* speech not available — the visuals still play */
   }
+}
+
+/** Play the neural-TTS clip if we got one, else fall back to browser speech. */
+function playResult(r: GainsResult) {
+  if (r.audio_b64) {
+    try {
+      const audio = new Audio(`data:audio/mpeg;base64,${r.audio_b64}`);
+      audio.volume = 1;
+      void audio.play();
+      return;
+    } catch {
+      /* fall through to browser TTS */
+    }
+  }
+  speak(r.spoken_line, r.passed);
 }
 
 function GainsCheck() {
@@ -102,7 +118,7 @@ function GainsCheck() {
           if (row.error) setError(row.error);
           if (row.result) {
             setResult(row.result);
-            speak(row.result.spoken_line, row.result.passed);
+            playResult(row.result);
           }
         },
       )
@@ -133,6 +149,7 @@ function GainsCheck() {
     if (e.stage === 'dispatched') return { icon: '⚙️', label: 'Temporal', sub: String(d.via ?? 'dispatched'), tokens: null };
     if (e.stage === 'reasoning') return { icon: '🧠', label: 'Azure · gpt-5-mini', sub: `reasoning · round ${d.round ?? ''}`, tokens: e.tokens };
     if (e.stage === 'tool') return { icon: '🎬', label: 'Giphy', sub: `search_gif: ${d.query ?? ''}`, tokens: null };
+    if (e.stage === 'speech') return { icon: '🔊', label: 'Azure Speech', sub: `neural TTS · ${d.style ?? ''}`, tokens: null };
     if (e.stage === 'finalized') return { icon: '💾', label: 'Supabase', sub: 'verdict saved', tokens: null };
     return { icon: '•', label: e.label, sub: e.stage, tokens: e.tokens };
   });
@@ -249,7 +266,7 @@ function GainsCheck() {
               agent fetched: {result.steps.map((s) => `${s.result?.query ?? ''} (${s.result?.source ?? ''})`).join(', ')}
             </p>
           )}
-          <button type="button" onClick={() => speak(result.spoken_line, result.passed)} className="mt-3 text-xs underline">
+          <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
             replay sound
           </button>
         </div>

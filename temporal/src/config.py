@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # Giphy API key for the Gains Check demo (optional; falls back to curated GIFs).
     giphy_api_key: str = Field("", env="GIPHY_API_KEY")
 
+    # Azure Speech (neural TTS) for the spoken verdict. Optional; falls back to
+    # the browser's speechSynthesis when unset.
+    azure_speech_key: str = Field("", env="AZURE_SPEECH_KEY")
+    azure_speech_region: str = Field("", env="AZURE_SPEECH_REGION")
+
     class Config:
         case_sensitive = False
 

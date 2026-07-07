@@ -40,6 +40,7 @@ async def main() -> None:
             gains.search_gif,
             gains.finalize_gains,
             gains.record_gains_event,
+            gains.synthesize_speech,
         ],
         activity_executor=activity_executor,
     )

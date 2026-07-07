@@ -82,6 +82,8 @@ services:
       - AZURE_OPENAI_AUTH=${AZURE_OPENAI_AUTH:-auto}
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
       - GIPHY_API_KEY=${GIPHY_API_KEY:-}
+      - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY:-}
+      - AZURE_SPEECH_REGION=${AZURE_SPEECH_REGION:-}
 
   frontend:
     build:

@@ -129,6 +129,21 @@ class GainsCheckWorkflow:
                         "reason": args.get("reason") or "",
                         "steps": steps,
                     }
+                    audio_b64 = await workflow.execute_activity(
+                        "synthesize_speech",
+                        args=[result["spoken_line"], result["passed"]],
+                        start_to_close_timeout=timedelta(seconds=30),
+                    )
+                    result["audio_b64"] = audio_b64
+                    await emit(
+                        "speech",
+                        "Azure Speech · neural TTS",
+                        {
+                            "voice": "en-US-DavisNeural",
+                            "style": "excited" if result["passed"] else "angry",
+                            "bytes": (len(audio_b64) * 3 // 4) if audio_b64 else 0,
+                        },
+                    )
                     await emit(
                         "finalized",
                         "Supabase · verdict saved",
