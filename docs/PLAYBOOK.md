@@ -1,19 +1,22 @@
-# Reuse Playbook — building agentic features on Supabase + Temporal
+# Stack Playbook — agentic features on Supabase + Temporal + Vite/React
 
-**Purpose:** reproduce this app's approach *precisely* in a new context, without re-deriving
-the architecture or re-hitting the landmines. This is the "how we actually did it, do it again
-faster" guide. It complements the [architecture](architecture/product-architecture.md) (shape)
-and [ADRs](adrs/) (why); this page is the **procedure**.
+**Purpose:** reproduce this *stack's* approach precisely in a new context, at larger scope and
+scale, without re-deriving the architecture or re-hitting the landmines. This is a
+**stack-and-lessons guide**, deliberately **not tied to any specific app** — the worked example
+that this repo happens to implement is demoted to a single pointer at the end. If you are
+starting another product on the same (or a similar) stack — Supabase (Postgres + PostgREST +
+Realtime) + Temporal + Vite/React + a hosted LLM — start here.
 
 Read it top-to-bottom once. After that, [§3 The Feature Recipe](#3-the-feature-recipe-repeat-per-feature)
 and [§4 The Landmine Table](#4-the-landmine-table-read-before-you-debug) are the two sections you
-reopen every time.
+reopen for every feature.
 
 ---
 
 ## 0. The one reusable idea
 
-Every feature is the same durable loop. **Copy this, not the specifics of Gains Check:**
+Every agentic feature on this stack is the same durable loop. **Copy this loop, not any one
+feature:**
 
 ```
 Browser  ──insert 'pending' row──▶  Supabase table
@@ -27,21 +30,20 @@ Browser  ──insert 'pending' row──▶  Supabase table
 Browser  ◀──Realtime UPDATE/INSERT──  Supabase
 ```
 
-**Invariant:** the browser only ever talks to Supabase (insert + subscribe). No bespoke API,
-no exposed worker port, no CORS. Everything non-deterministic (model calls, HTTP, randomness,
-TTS) lives in **activities**; the **workflow** is deterministic orchestration only. This is
-[ADR-0001](adrs/0001-entity-insights-workflow-and-model-hosting.md). If you keep this invariant,
-adding a feature is mechanical (§3).
+**Invariant:** the browser only ever talks to Supabase (insert + subscribe). No bespoke API, no
+exposed worker port, no CORS. Everything non-deterministic (model calls, HTTP, randomness,
+external services) lives in **activities**; the **workflow** is deterministic orchestration only.
 
-**When to use this stack:** a user action needs a durable, multi-step, tool-using model run
-with live progress. **When not to:** a single stateless LLM call with no progress UI — just use
-a Supabase Edge Function; Temporal is overhead you won't need.
+**When to use this stack:** a user action needs a durable, multi-step, tool-using model run with
+live progress. **When not to:** a single stateless LLM call with no progress UI — use a Supabase
+Edge Function; Temporal is overhead you won't need. Keep both kinds in the same product by using
+this loop only where durability/steps/streaming actually earn their cost.
 
 ---
 
 ## 1. Stand up the base stack (once per machine)
 
-Base template: an export of `Volaris-AI/project-template` (Supabase CLI + Temporal + Vite/React).
+The base is the shared template (Supabase CLI + Temporal + Vite/React). Getting it running:
 
 ```bash
 cp .env.example .env
@@ -49,24 +51,25 @@ make up                 # supabase start + Temporal + worker + frontend
 make supabase-status    # prints local Supabase URLs + keys (make injects them)
 ```
 
-Full detail + prerequisites is in [`ONBOARDING.md`](../ONBOARDING.md). The two things that will
-cost you an hour if you don't know them up front are in [§4](#4-the-landmine-table-read-before-you-debug)
-(Rancher context; Supabase port remap on Windows).
+Prerequisites and the full local setup live in the onboarding guide for whichever product you're
+in. The two things that cost an hour if you don't know them up front are in
+[§4](#4-the-landmine-table-read-before-you-debug) (container runtime context; Supabase port
+collisions on Windows).
 
 ---
 
 ## 2. Wire the model (once per project)
 
-Do this **before** any feature. Two files:
+Do this **before** any feature. Two files, reused by every feature after:
 
-**`temporal/src/agents/model_client.py`** — `ModelClient` wrapping the `openai` SDK's
-`AzureOpenAI`, **Entra-first with API-key fallback** (`AZURE_OPENAI_AUTH=auto`): try
-`DefaultAzureCredential`/`get_bearer_token_provider`; on an auth error fall back to the key and
-remember it. One call site regardless. Pin **`openai>=1.54,<2`** (v2 dropped the
-`azure_ad_token_provider` construction path). See [ADR-0001](adrs/0001-entity-insights-workflow-and-model-hosting.md).
+**A model client** (`temporal/src/agents/model_client.py` here) — wrap the provider SDK behind
+one class with **credential-first, key-fallback** auth so the call site never branches on how you
+authenticated. Keep the provider isolated to this one file so swapping the LLM host later is a
+single-file change, not a sweep. (This build used Azure OpenAI + Entra/`DefaultAzureCredential`
+with an API-key fallback; pin the SDK — `openai>=1.54,<2` here — because major versions change
+the construction path.)
 
-**`temporal/src/activities/insights.py::model_chat`** — the reusable one-model-turn activity.
-Signature that matters:
+**A generic one-turn activity** (`model_chat`) — the reusable unit every workflow calls:
 
 ```python
 @activity.defn
@@ -75,24 +78,24 @@ def model_chat(messages: list[dict], tool_specs: list[dict],
                tool_choice: Any = "auto") -> dict:      # ← tool_choice MUST be typed Any
     resp = _model().chat(messages, tools=tool_specs, tool_choice=tool_choice,
                          max_completion_tokens=max_completion_tokens)
-    ...
     return {"content", "tool_calls": [{"id","name","arguments"}...], "finish_reason", "usage"}
 ```
 
-Reasoning models (e.g. `gpt-5-mini`): use `max_completion_tokens` (not `max_tokens`), **no
-`temperature`**, and give reasoning headroom (2048). `tool_choice: Any` is not cosmetic — see
-the landmine table. This activity is reused verbatim by every feature; you rarely touch it again.
+**Reasoning-model caveats** (apply to any reasoning-tier model, not just this one): use a
+completion-token budget (not `max_tokens`), **omit `temperature`**, and give reasoning headroom.
+`tool_choice: Any` is not cosmetic — see the landmine table. This activity is provider- and
+feature-agnostic; you rarely touch it again.
 
 ---
 
 ## 3. The Feature Recipe (repeat per feature)
 
-Adding an agentic feature = these **7 edits**, always the same shape. Names below assume a
-feature called `foo`; substitute freely.
+Adding any agentic feature = these **7 edits**, always the same shape regardless of what the
+feature does. Names below use a placeholder feature `foo`; substitute freely.
 
 ### Step 1 — Migration `supabase/migrations/<ts>_foo.sql`
-The run table + (optional) a trace table. **The three lines everyone forgets are the grants,
-the `service_role` grant, and the realtime publication** — without them PostgREST returns
+A run table + (optional) a trace table. **The three lines everyone forgets are the API-role
+grants, the `service_role` grant, and the realtime publication** — without them PostgREST returns
 `42501 permission denied` and the UI never streams.
 
 ```sql
@@ -115,8 +118,9 @@ grant all privileges on foo_runs to service_role;          -- ← worker writes 
 alter publication supabase_realtime add table foo_runs;     -- ← required for the live UI
 ```
 
-Add a `foo_events` trace table the same way if you want the live stepper (worker inserts ordered
-`{run_id, seq, stage, label, detail, tokens}` rows).
+Add a `foo_events` trace table the same way for a live stepper (worker inserts ordered
+`{run_id, seq, stage, label, detail, tokens}` rows). **Note the RLS posture is a
+local/experiment default** (anon can insert/select) — tighten it for anything real (see §7).
 
 ### Step 2 — Poller entry `temporal/src/runs/poller.py`
 Add one atomic claim + workflow start inside `poll_loop`. The claim is a **single** PATCH so two
@@ -127,7 +131,7 @@ for run in await asyncio.to_thread(_claim, "foo_runs", "id,input"):
     await client.start_workflow(FooWorkflow.run, args=[run["id"], run.get("input") or {}],
                                 id=f"foo-{run['id']}", task_queue=task_queue)
 ```
-`_claim` already exists: `PATCH {table}?status=eq.pending&select=... {status:'running'}` with
+`_claim` is generic: `PATCH {table}?status=eq.pending&select=... {status:'running'}` with
 `Prefer: return=representation`.
 
 ### Step 3 — Workflow `temporal/src/workflows/foo.py`
@@ -149,8 +153,9 @@ per tool result; emit a trace event per hop; on the terminal tool, finalize `don
 helpers under `with workflow.unsafe.imports_passed_through():`.
 
 ### Step 4 — Activities `temporal/src/activities/foo.py`
-All non-determinism: your tools (HTTP, DB reads, randomness), `record_foo_event`, `finalize_foo`
-(PATCH the row `done`/`error` with the result). Reuse `insights.model_chat`.
+All non-determinism: your tools (HTTP, DB reads, randomness, external services), a
+`record_foo_event`, and a `finalize_foo` (PATCH the row `done`/`error` with the result). Reuse
+the generic `model_chat`.
 
 ### Step 5 — Register `temporal/src/worker.py`
 Add `FooWorkflow` to `workflows=[...]` and every `foo.*` activity to `activities=[...]`. **Both
@@ -166,101 +171,124 @@ await supabase.from('foo_runs').insert({ input, status: 'pending' }).select().si
 ```
 
 ### Step 7 — Secrets `docker-compose.yml`
-Pass any new secret to `temporal-worker`'s environment (and document it in `.env.example`). Never
-send the service-role key or any provider key to the browser — the frontend uses the anon key only.
+Pass any new secret to the worker's environment (and document it in `.env.example`). Never send
+the service-role key or any provider key to the browser — the frontend uses the anon key only.
 
-> **Verify each step end-to-end**, not just "it compiles": insert a row via the service key and
-> poll the result (see §5). This is how every feature here was checked.
+> **Verify each step end-to-end**, not just "it compiles": insert a row with the service key and
+> poll the result (see §5).
 
 ---
 
 ## 4. The Landmine Table (read before you debug)
 
-Every one of these cost real time on this build. Skimming this table is the single biggest
+Every one of these is a **stack-level** trap (environment, provider, orchestration, or delivery)
+— none is specific to a particular app's domain. Skimming this table is the single biggest
 time-saver for reuse.
 
 | Symptom | Root cause | Fix |
 |---|---|---|
-| Docker commands hit the wrong daemon / nothing runs | Rancher Desktop, not Docker Desktop, owns the working daemon | `docker context use default` |
-| `supabase start` fails: `dial tcp 127.0.0.1:543xx refused` | Windows reserves `54268–54367` (WinNAT/Hyper-V) | Remap Supabase ports `543xx→553xx` in `supabase/config.toml`; set `[analytics] enabled=false` |
-| PostgREST `42501 permission denied for table` (as anon/service_role) | Base template creates tables **without API-role grants** | Add `grant select,insert ... to anon,authenticated; grant all ... to service_role;` in the migration |
-| `openai` v2: "Missing credentials" when building `AzureOpenAI` with a token provider | v2 dropped the `azure_ad_token_provider` construction path | Pin `openai>=1.54,<2` |
-| Temporal: `Unserializable type during conversion: <class 'object'>` | An activity param typed `object` (e.g. `tool_choice: object`) | Type it `Any` (`from typing import Any`) |
-| Model "max rounds exceeded" / never calls the tool | Reasoning model thinks out loud instead of calling the function | Force `tool_choice={"type":"function","function":{"name":...}}` **and** nudge+continue on an empty tool-call turn; give 2048 token headroom |
-| Model 400 on `temperature` / truncated output | Reasoning model rejects `temperature`, needs `max_completion_tokens` | Drop `temperature`; use `max_completion_tokens` |
-| Giphy `403` with the public demo key | Free/demo Giphy keys are banned (2026) | Use a real `GIPHY_API_KEY`; keep a curated CDN fallback list so it never blanks |
+| Docker commands hit the wrong daemon / nothing runs | Two container runtimes installed; the wrong one owns the daemon | Select the working context (e.g. `docker context use default` for Rancher Desktop) |
+| `supabase start` fails: `dial tcp 127.0.0.1:543xx refused` | Windows reserves `54268–54367` (WinNAT/Hyper-V), colliding with Supabase defaults | Remap Supabase ports `543xx→553xx` in `supabase/config.toml`; set `[analytics] enabled=false` |
+| PostgREST `42501 permission denied for table` (as anon/service_role) | The template creates tables **without API-role grants** | Add `grant select,insert ... to anon,authenticated; grant all ... to service_role;` in the migration |
+| Provider SDK: "Missing credentials" / broken construction after an upgrade | A major SDK version changed the auth/construction path | Pin the SDK to a known-good major (`openai>=1.54,<2` here) |
+| Temporal: `Unserializable type during conversion: <class 'object'>` | An activity/workflow param typed `object` (e.g. `tool_choice: object`) | Type it `Any` (`from typing import Any`) — Temporal's converter can't serialize bare `object` |
+| Model "max rounds exceeded" / never calls the tool | A reasoning model "thinks out loud" instead of calling the function | Force `tool_choice={"type":"function","function":{"name":...}}` **and** nudge+continue on an empty tool-call turn; give token headroom |
+| Model 400 on `temperature` / truncated output | Reasoning models reject `temperature` and need a completion-token budget | Drop `temperature`; use `max_completion_tokens` |
+| A third-party API you call from an activity rejects your key | Free/demo/public tiers get revoked (e.g. `403`) | Use a real key **and** keep a deterministic fallback so the feature degrades gracefully instead of blanking |
 | Poller starts a workflow twice for one row | Non-atomic claim (read then write) | One `PATCH status=eq.pending` returning representation = atomic claim |
-| `docker run -v <host>:/app` mounts an **empty** dir (Windows/Rancher) | Git-Bash path → WSL bind mount doesn't bind | `docker cp` into a built image, or `USE_DEV=1` compose mounts; don't rely on ad-hoc `-v` |
-| Code changes don't show up | Base compose bakes code into the image (no hot reload) | Rebuild the image (`docker compose build <svc>`) or run with `USE_DEV=1` |
+| `docker run -v <host>:/app` mounts an **empty** dir (Windows/WSL runtimes) | Git-Bash path → WSL bind mount doesn't bind | `docker cp` into a built image, or use dev-mount compose overrides; don't rely on ad-hoc `-v` |
+| Code changes don't show up | Base compose bakes code into the image (no hot reload) | Rebuild the image (`docker compose build <svc>`) or run with the dev-mount override |
 | UI misses the first trace steps | Subscribed after the worker already inserted them | After `.subscribe()`, run a one-shot select to **backfill** and merge by `seq` |
 | Post-merge commits vanish from `main` | PRs are **squash-merged**; pushing more to a merged branch orphans them | Branch fresh off `main` for each PR; never reuse a merged branch |
-| CI "tests" pass but assert nothing | A job that skips when no test files exist | Make it **fail** if no `test_*.py` exist (see [ADR-0003](adrs/0003-testing-strategy.md)) |
+| CI "tests" pass but assert nothing | A job that skips when no test files exist | Make it **fail** if no tests exist |
 
 ---
 
-## 5. Verify & test (the discipline that kept this honest)
+## 5. Verify & test (the discipline that keeps it honest)
 
-- **End-to-end smoke, every feature:** a throwaway Node/script that inserts a `pending` row with
-  the **service-role key** against the local REST API and polls `status` until `done`, printing
-  the result + trace. This is how each feature and each fix was proven — not "CI is green."
-- **Committed suite** ([ADR-0003](adrs/0003-testing-strategy.md)): pytest **unit tests** for pure
-  logic (no network) + **Temporal workflow tests** using the time-skipping `WorkflowEnvironment`
-  with **mocked activities** (assert orchestration, not the model). CI runs them and **fails if
-  they disappear**. This is the reusable test pattern — copy `temporal/tests/` structure.
-- **Frontend gate:** `eslint` + `vite build` (type-check via build). No FE unit runner yet.
+- **End-to-end smoke, every feature:** a throwaway script that inserts a `pending` row with the
+  **service-role key** against the local REST API and polls `status` until `done`, printing the
+  result + trace. Prove each feature and each fix this way — not "CI is green."
+- **Committed suite (the reusable pattern):** unit tests for pure logic (no network) + **Temporal
+  workflow tests** using the time-skipping `WorkflowEnvironment` with **mocked activities** (assert
+  orchestration, not the model). Wire CI to run them and **fail if they disappear** — a green
+  "tests" check that runs zero assertions is worse than none.
+- **Frontend gate:** lint + production build (type-check via build) at minimum.
 
 ---
 
-## 6. Guided vs Agentic — the reusable autonomy dial
+## 6. The autonomy dial (a design choice, per feature)
 
-The same feature can be built two ways; pick per requirement (both shipped for Gains Check,
-[ADR-0002](adrs/0002-gains-check-guided-vs-agentic-engine.md)):
+The same feature can be built anywhere on a reliability↔autonomy spectrum. Pick per requirement,
+and consider shipping both behind a `mode` flag on the run row:
 
 - **Reliable / demo-safe:** **force** `tool_choice` to a single `submit_*` tool, put the decision
-  rules in the prompt, and choose all sensory/branded output in **code** from curated data. The
-  model classifies; code does the rest. Predictable, cheap.
+  rules in the prompt, and choose all branded/sensory output in **code** from curated data. The
+  model classifies; code does the rest. Predictable, cheap, on-brand.
 - **Genuinely agentic:** expose **real tools** (`search_*`, `get_*`), leave `tool_choice="auto"`,
   and let the model run a reason→act→decide loop with **nothing overriding it**. Adaptive, but
   variable output.
 
-Shipping **both behind a `input.mode` toggle** is cheap (same workflow skeleton, one branch) and
-lets you demo the trade-off. Default to guided.
+Both use the identical §3 skeleton — the only difference is whether `tool_choice` is forced and
+whether code overrides the model's choices. Default to the reliable end and open up per feature.
 
 ---
 
-## 7. To scale (what to templatize next)
+## 7. Scaling to a larger product (many features, a team, real users)
 
-The 7 steps in §3 are ~identical every time — that's the scaling lever:
+The 7 steps in §3 are ~identical every time — that repetition is the scaling lever, but scale
+also introduces concerns the single-feature recipe doesn't cover:
 
-1. **A `scaffold-feature <name>` generator** that stamps the 5 files (migration, workflow,
-   activity, poller entry, route) from the skeletons above, parameterized on the feature/table
-   name. ~80% of a new feature is boilerplate this removes.
-2. **Factor the run-loop** (claim → model_chat loop → tool dispatch → trace → finalize) into a
-   small shared base so a workflow only declares its tools + terminal schema.
-3. **A migration macro** for "run table + trace table + RLS + grants + realtime" so the
+**Kill the boilerplate**
+1. A **`scaffold-feature <name>`** generator that stamps the 5 files (migration, workflow,
+   activity, poller entry, route) from the skeletons above. ~80% of a new feature is boilerplate
+   this removes.
+2. **Factor the run-loop** (claim → `model_chat` loop → tool dispatch → trace → finalize) into a
+   shared base so a workflow only declares its tools + terminal schema.
+3. A **migration macro/snippet** for "run table + trace table + RLS + grants + realtime" so the
    easy-to-forget grant/publication lines can't be dropped.
-4. Keep `model_chat` and `ModelClient` **provider-agnostic at the call site** so swapping Azure
-   OpenAI for Bedrock/another host is one file, not a sweep.
 
-Everything else (Realtime subscription shape, the trace stepper component, the finalize-on-error
-pattern) is directly copy-pasteable.
+**Orchestration at scale**
+4. **Partition work across task queues** (per feature or per priority) and scale worker replicas
+   independently; don't let a slow feature starve others on one queue.
+5. **Poller throughput:** a single ~2s poll loop is fine for a demo; at volume, batch-claim,
+   shard by a hash of the row id across workers, or replace the poll with a push
+   (LISTEN/NOTIFY or a queue) to cut trigger latency and DB load.
+6. **Version workflows** (Temporal `patched`/versioning) so in-flight runs survive deploys —
+   mandatory once runs are long-lived and you ship often.
+
+**Data, security, cost**
+7. **Tighten RLS beyond the local default:** the anon-insert/anon-select posture in §3 is an
+   experiment convenience. For real users scope rows to an authenticated owner and drop the
+   blanket anon policies.
+8. **Secrets:** move provider/API keys out of `.env`/compose into a real secret store per
+   environment; keep the service-role key server-only, always.
+9. **Trace tables as a platform concern:** `*_events` grows fast — add retention/TTL, and treat
+   the per-hop token usage as the basis for cost dashboards and budget alerts.
+10. **Standardize observability:** one trace schema across all features means one stepper
+    component and one dashboard, not N.
+
+Everything else (Realtime subscription shape, the trace stepper, the finalize-on-error pattern,
+the atomic claim) is directly copy-pasteable across features and products.
 
 ---
 
 ## 8. Reality check (so estimates are honest)
 
-This was built interactively (human directs, agent does the plumbing) as PRs into `main`. The
-work was **not** dominated by writing feature code — it was the landmines in §4 (environment,
-grants, provider quirks, serialization) and **end-to-end verification**. Budget accordingly: with
-§4 pre-empted and §3 templatized, a new feature on an already-stood-up stack is hours, not days.
-The dollar/token figures shown in the app's build-stats banner are whole-session Claude Code
-usage (mostly cached context re-reads), not the cost of any single feature.
+On this stack the work is **not** dominated by writing feature code — it's the §4 landmines
+(environment, grants, provider quirks, serialization, delivery) and **end-to-end verification**.
+Budget accordingly: with §4 pre-empted and §3 templatized, a new feature on an already-stood-up
+stack is hours, not days. The first feature on a *fresh* stack is dominated by §1–§2 and the
+landmines, so front-load those.
 
 ---
 
-## Pointers
+## Worked example (this repo)
 
-- [`ONBOARDING.md`](../ONBOARDING.md) — get the stack running.
-- [`docs/architecture/product-architecture.md`](architecture/product-architecture.md) — the shape.
-- [`docs/adrs/`](adrs/) — the binding decisions (hosting, engines, testing, deploy).
+This repository is one concrete implementation of the above (two features on the stack). For a
+filled-in version of every step and the specific decisions taken:
+
+- [`docs/architecture/product-architecture.md`](architecture/product-architecture.md) — the shape, wired up.
+- [`docs/adrs/`](adrs/) — the binding decisions (model hosting, the reliability-vs-autonomy dial as shipped, testing, deployment posture).
 - [`docs/specs/`](specs/) — per-feature detailed designs.
+- [`ONBOARDING.md`](../ONBOARDING.md) — get this repo's stack running.
