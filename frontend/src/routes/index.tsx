@@ -1,8 +1,9 @@
 /**
  * Home — the platform launcher. Renders one card per enabled feature from the
  * frontend feature registry (ADR-0008); disabled features simply don't appear.
+ * Cards are TanStack `<Link>` (client-side nav + intent preload + lazy chunks).
  */
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { enabledFeatures } from '@/features/registry';
 
 export const Route = createFileRoute('/')({
@@ -19,16 +20,16 @@ function Launcher() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {features.map((f) => (
-          <a
+          <Link
             key={f.key}
-            href={f.path}
+            to={f.path}
             className="flex flex-col gap-1 rounded-lg border p-4 transition-colors hover:bg-muted/50"
           >
             <span className="text-lg font-medium">
               {f.emoji} {f.title}
             </span>
             <span className="text-sm leading-snug text-muted-foreground">{f.description}</span>
-          </a>
+          </Link>
         ))}
       </div>
     </div>

@@ -7,6 +7,7 @@ package and a single `enabled` flag — never the bodies of `worker.py` or `poll
 """
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
@@ -30,6 +31,20 @@ class FeatureManifest:
     activities: tuple[Any, ...] = ()
     claims: tuple[ClaimSpec, ...] = ()
     route: str | None = None
+
+
+def apply_feature_flags(
+    features: list[FeatureManifest], allow_csv: str | None
+) -> list[FeatureManifest]:
+    """Override each manifest's `enabled` from an allowlist env value (ADR-0010).
+
+    `allow_csv` empty/None → keep the built-in `enabled` flags. Otherwise a feature is
+    enabled iff its key is in the comma-separated allowlist.
+    """
+    if not allow_csv or not allow_csv.strip():
+        return list(features)
+    allow = {s.strip() for s in allow_csv.split(",") if s.strip()}
+    return [dataclasses.replace(f, enabled=(f.key in allow)) for f in features]
 
 
 def enabled_features(features: list[FeatureManifest]) -> list[FeatureManifest]:

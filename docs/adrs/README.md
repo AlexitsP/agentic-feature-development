@@ -26,8 +26,9 @@ Architectural decisions (data model, orchestration engine, deployment topology, 
 | [0005](./0005-gains-plan-multi-agent-panel.md) | Gains Plan — multi-agent panel (parallel specialists → synthesizer) | Accepted |
 | [0006](./0006-trim-to-gains-only-minimal-repo.md) | Trim to a Gains-only minimal repo | Accepted |
 | [0007](./0007-owner-scoped-rls-and-auth.md) | Owner-scoped RLS + auth (SEC-1) | Accepted |
-| [0008](./0008-education-platform-feature-plugin-architecture.md) | Education advisor platform + feature-plugin architecture | Proposed |
-| [0009](./0009-confidence-signal-observable-not-self-reported.md) | Confidence signal from observable factors, not model self-report | Proposed |
+| [0008](./0008-education-platform-feature-plugin-architecture.md) | Education advisor platform + feature-plugin architecture | Accepted |
+| [0009](./0009-confidence-signal-observable-not-self-reported.md) | Confidence signal from observable factors, not model self-report | Accepted |
+| [0010](./0010-frontend-nav-and-feature-flags.md) | Frontend navigation + env-driven feature flags | Accepted |
 
 ## Maintenance note
 

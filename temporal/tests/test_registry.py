@@ -4,12 +4,24 @@ import dataclasses
 from src.kernel.registry import (
     ClaimSpec,
     FeatureManifest,
+    apply_feature_flags,
     build_activities,
     build_claims,
     build_routes,
     build_workflows,
     enabled_features,
 )
+
+
+def test_apply_feature_flags_allowlist_and_default():
+    feats = [FeatureManifest(key="a", title="A", enabled=True), FeatureManifest(key="b", title="B", enabled=True)]
+    # No allowlist -> keep built-in flags.
+    assert [f.key for f in apply_feature_flags(feats, None) if f.enabled] == ["a", "b"]
+    assert [f.key for f in apply_feature_flags(feats, "  ") if f.enabled] == ["a", "b"]
+    # Allowlist -> only listed keys enabled (whitespace tolerated).
+    assert [f.key for f in apply_feature_flags(feats, "a") if f.enabled] == ["a"]
+    assert [f.key for f in apply_feature_flags(feats, " b , a ") if f.enabled] == ["a", "b"]
+    assert [f.key for f in apply_feature_flags(feats, "nope") if f.enabled] == []
 
 
 # Identity-compared stand-ins for workflow classes / activity callables.
