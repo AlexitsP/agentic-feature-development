@@ -16,15 +16,12 @@ export const Route = createFileRoute('/gains')({
 interface GainsResult {
   passed: boolean;
   fail_kind?: 'not_tracking' | 'slacking' | null;
+  status?: 'on_track' | 'needs_work' | 'not_tracking';
   mode?: 'guided' | 'agentic';
-  headline: string;
-  spoken_line: string;
-  gif_url: string | null;
-  sound: 'hype' | 'shame';
-  reason: string;
+  assessment: string;
+  suggested_goal?: 'recomp' | 'weight_loss' | 'build_muscle' | 'get_lean';
+  suggestion_reason?: string;
   persona?: string;
-  audio_b64?: string | null;
-  steps?: Array<{ tool: string; args: Record<string, unknown>; result: { query?: string; source?: string } }>;
 }
 
 interface GainsPlan {
@@ -88,17 +85,20 @@ const GOALS = [
   { key: 'get_lean', emoji: '🔪', label: 'Get lean', blurb: 'Cut down body fat' },
 ] as const;
 
-// TTS is off for now (kept in code — flip to re-enable once the backend
-// AZURE_SPEECH_ENABLED flag is on too).
-const TTS_ENABLED = false;
-
-// Verdict theming: pass = green, "slacking" fail = amber, "not tracking" = red.
-function verdictTheme(r: GainsResult) {
-  if (r.passed) return { border: 'border-green-500', bg: 'bg-green-500/10', text: 'text-green-500', flash: false, emoji: '💪🔥' };
-  if (r.fail_kind === 'slacking')
-    return { border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-500', flash: true, emoji: '😤' };
-  return { border: 'border-red-500', bg: 'bg-red-500/10', text: 'text-red-500', flash: true, emoji: '🐕📢' };
+// Result theming by evaluation status.
+function statusTheme(r: GainsResult) {
+  const s = r.status ?? (r.passed ? 'on_track' : r.fail_kind === 'slacking' ? 'needs_work' : 'not_tracking');
+  if (s === 'on_track') return { label: 'On track', border: 'border-green-500', bg: 'bg-green-500/10', text: 'text-green-600', badge: '✅' };
+  if (s === 'needs_work') return { label: 'Needs work', border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-600', badge: '⚠️' };
+  return { label: 'Not tracking', border: 'border-red-500', bg: 'bg-red-500/10', text: 'text-red-600', badge: '❌' };
 }
+
+const GOAL_LABELS: Record<string, string> = {
+  recomp: 'Body recomposition',
+  weight_loss: 'Weight loss',
+  build_muscle: 'Build muscle',
+  get_lean: 'Get lean',
+};
 
 type Status = 'idle' | 'pending' | 'running' | 'done' | 'error';
 
@@ -108,36 +108,6 @@ interface TraceEvent {
   label: string;
   detail: Record<string, unknown> | null;
   tokens: number | null;
-}
-
-function speak(line: string, hype: boolean) {
-  try {
-    const synth = window.speechSynthesis;
-    if (!synth || !line) return;
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(line);
-    u.rate = hype ? 1.05 : 1;
-    u.pitch = hype ? 1.3 : 0.7;
-    u.volume = 1;
-    synth.speak(u);
-  } catch {
-    /* speech not available — the visuals still play */
-  }
-}
-
-/** Play the neural-TTS clip if we got one, else fall back to browser speech. */
-function playResult(r: GainsResult) {
-  if (r.audio_b64) {
-    try {
-      const audio = new Audio(`data:audio/mpeg;base64,${r.audio_b64}`);
-      audio.volume = 1;
-      void audio.play();
-      return;
-    } catch {
-      /* fall through to browser TTS */
-    }
-  }
-  speak(r.spoken_line, r.passed);
 }
 
 function GainsCheck() {
@@ -212,7 +182,6 @@ function GainsCheck() {
           if (row.error) setError(row.error);
           if (row.result) {
             setResult(row.result);
-            if (TTS_ENABLED) playResult(row.result);
           }
         },
       )
@@ -729,32 +698,47 @@ function GainsCheck() {
             )}
 
             {result && status === 'done' && (
-              <div className={`rounded-xl border-4 p-6 text-center ${verdictTheme(result).border} ${verdictTheme(result).bg}`}>
-                <div className="mb-2 flex items-center justify-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-                  {result.persona && <span>Coach: {result.persona}</span>}
-                  <span className="rounded-full border px-2 py-0.5 normal-case">
-                    {result.mode === 'agentic' ? '🤖 Agentic' : '🎛️ Guided'}
-                  </span>
+              <div className="space-y-4">
+                <div className={`rounded-xl border-2 p-5 ${statusTheme(result).border} ${statusTheme(result).bg}`}>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className={`text-lg font-semibold ${statusTheme(result).text}`}>
+                      {statusTheme(result).badge} {statusTheme(result).label}
+                    </span>
+                    <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                      {result.persona && <span>Coach: {result.persona}</span>}
+                      <span className="rounded-full border px-2 py-0.5 normal-case">
+                        {result.mode === 'agentic' ? '🤖 Agentic' : '🎛️ Guided'}
+                      </span>
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed">{result.assessment}</p>
                 </div>
-                <div
-                  className={`text-5xl font-extrabold ${verdictTheme(result).text}`}
-                  style={verdictTheme(result).flash ? { animation: 'gainsflash 0.5s steps(1) infinite' } : undefined}
-                >
-                  {result.headline}
-                </div>
-                <div className="mt-4 flex justify-center">
-                  {result.gif_url ? (
-                    <img src={result.gif_url} alt={result.headline} className="max-h-72 rounded-lg" />
-                  ) : (
-                    <div className="text-7xl">{verdictTheme(result).emoji}</div>
-                  )}
-                </div>
-                <p className="mt-4 text-lg font-medium">{result.reason}</p>
-                <p className="mt-1 text-sm text-muted-foreground">🔊 “{result.spoken_line}”</p>
-                {TTS_ENABLED && (
-                  <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
-                    replay sound
-                  </button>
+
+                {result.suggested_goal && (
+                  <div className="rounded-xl border p-4">
+                    <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Suggested plan</div>
+                    <div className="text-base font-medium">🎯 {GOAL_LABELS[result.suggested_goal] ?? result.suggested_goal}</div>
+                    {result.suggestion_reason && <p className="mt-1 text-sm text-muted-foreground">{result.suggestion_reason}</p>}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGoal(result.suggested_goal!);
+                          setStep(4);
+                        }}
+                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                      >
+                        Accept &amp; build this plan →
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStep(4)}
+                        className="rounded-md border px-4 py-2 text-sm hover:bg-muted/50"
+                      >
+                        Choose a goal myself
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
