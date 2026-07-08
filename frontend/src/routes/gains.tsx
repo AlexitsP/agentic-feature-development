@@ -404,7 +404,7 @@ function GainsCheck() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <style>{`@keyframes gainsflash{0%,49%{opacity:1}50%,100%{opacity:.15}}@keyframes stepfade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`}</style>
+      <style>{`@keyframes gainsflash{0%,49%{opacity:1}50%,100%{opacity:.15}}@keyframes stepfade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.gains-stepfade{animation:stepfade .25s ease}@media (prefers-reduced-motion:reduce){.gains-stepfade{animation:none}.gains-motion{animation:none!important}}`}</style>
 
       <div className="mb-4">
         <h1 className="text-3xl font-bold tracking-tight">💪 Gains Check</h1>
@@ -448,7 +448,7 @@ function GainsCheck() {
           className="group fixed right-3 top-1/2 z-40 hidden -translate-y-1/2 flex-col items-end gap-1.5 lg:flex"
         >
           <div className="mb-0.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            trace {busy && <span className="animate-pulse text-primary">●</span>}
+            trace {busy && <span className="gains-motion animate-pulse text-primary">●</span>}
           </div>
           {steps.map((s, i) => {
             const active = i === lastDoneIndex && status !== 'done';
@@ -483,7 +483,7 @@ function GainsCheck() {
           className="group fixed right-3 top-1/2 z-40 hidden -translate-y-1/2 flex-col items-end gap-1.5 lg:flex"
         >
           <div className="mb-0.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            plan panel {planBusy && <span className="animate-pulse text-primary">●</span>}
+            plan panel {planBusy && <span className="gains-motion animate-pulse text-primary">●</span>}
           </div>
           {planSteps.map((s, i) => {
             const active = planBusy && i === planLastIndex;
@@ -508,7 +508,7 @@ function GainsCheck() {
       )}
 
       {/* Step panel — fades in on every forward/back change (keyed by step) */}
-      <div key={step} style={{ animation: 'stepfade .25s ease' }} className="min-h-[16rem]">
+      <div key={step} className="gains-stepfade min-h-[16rem]">
         {step === 0 && (
           <div className="rounded-lg border p-4">
             <div className="mb-2 text-sm text-muted-foreground">Engine</div>
@@ -671,12 +671,14 @@ function GainsCheck() {
         {step === 3 && (
           <div className="space-y-6">
             {error && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+              <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
             )}
 
             {busy && (
-              <div className="rounded-xl border p-8 text-center">
-                <div className="animate-bounce text-4xl">🏋️</div>
+              <div role="status" aria-live="polite" className="rounded-xl border p-8 text-center">
+                <div className="gains-motion animate-bounce text-4xl">🏋️</div>
                 <p className="mt-3 text-lg font-medium">COACH IS LOOKING…</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Running the {mode === 'agentic' ? 'agentic' : 'guided'} pipeline.
@@ -686,7 +688,7 @@ function GainsCheck() {
                   <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                     <span className="truncate">
                       {steps[lastDoneIndex]?.icon} {steps[lastDoneIndex]?.label} · {steps[lastDoneIndex]?.sub}
-                      <span className="ml-1 animate-pulse">●</span>
+                      <span className="ml-1 gains-motion animate-pulse">●</span>
                     </span>
                     <span className="shrink-0 pl-2">{totalTokens > 0 ? `${totalTokens} tok` : ''}</span>
                   </div>
@@ -698,7 +700,7 @@ function GainsCheck() {
             )}
 
             {result && status === 'done' && (
-              <div className="space-y-4">
+              <div role="status" aria-live="polite" className="space-y-4">
                 <div className={`rounded-xl border-2 p-5 ${statusTheme(result).border} ${statusTheme(result).bg}`}>
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <span className={`text-lg font-semibold ${statusTheme(result).text}`}>
@@ -792,7 +794,9 @@ function GainsCheck() {
             </div>
 
             {planError && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{planError}</div>
+              <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                {planError}
+              </div>
             )}
           </div>
         )}
@@ -800,12 +804,14 @@ function GainsCheck() {
         {step === 5 && (
           <div className="space-y-4">
             {planError && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{planError}</div>
+              <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                {planError}
+              </div>
             )}
 
             {planBusy && (
-              <div className="rounded-xl border p-8 text-center">
-                <div className="animate-pulse text-4xl">🧠</div>
+              <div role="status" aria-live="polite" className="rounded-xl border p-8 text-center">
+                <div className="gains-motion animate-pulse text-4xl">🧠</div>
                 <p className="mt-3 text-lg font-medium">THE COACH PANEL IS RESEARCHING…</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   A nutrition, a training and a recovery specialist are weighing in — then the head coach synthesizes your plan.
