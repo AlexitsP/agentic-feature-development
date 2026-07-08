@@ -12,57 +12,6 @@ from src.agents.tools import gains_tools as gt
 from src.activities import gains as gains_activities
 
 
-# ── pick_closest_legend (the metric I had to fix) ────────────────────────────
-def test_closest_legend_heavy_user_matches_ronnie():
-    legend = gt.pick_closest_legend({"weight_kg": 137, "body_fat_pct": 6})
-    assert legend["name"] == "Ronnie Coleman"
-    assert legend["matched"] is True
-
-
-def test_closest_legend_light_user_matches_a_lighter_legend():
-    legend = gt.pick_closest_legend({"weight_kg": 60, "body_fat_pct": 25})
-    # A ~60 kg user must NOT collapse onto a heavyweight — weight must dominate.
-    assert legend["weight_kg"] <= 80
-    assert legend["matched"] is True
-
-
-def test_closest_legend_weight_beats_bodyfat():
-    # Regression guard: before the fix, everyone matched the leanest legend
-    # because body-fat (tiny spread) dominated. A 130 kg lifter at 20% BF must
-    # still match a heavyweight, not a 60 kg physique competitor.
-    legend = gt.pick_closest_legend({"weight_kg": 130, "body_fat_pct": 20})
-    assert legend["weight_kg"] >= 107
-
-
-def test_closest_legend_no_stats_is_random_and_unmatched():
-    legend = gt.pick_closest_legend({"weight_kg": None, "body_fat_pct": None})
-    assert legend["matched"] is False
-    assert legend["name"] in {l["name"] for l in gt.LEGENDS}
-
-
-def test_closest_legend_weight_only_still_matches():
-    legend = gt.pick_closest_legend({"weight_kg": 137, "body_fat_pct": None})
-    assert legend["name"] == "Ronnie Coleman"
-    assert legend["matched"] is True
-
-
-# ── legend_by_name (fuzzy lookup for the agentic path) ───────────────────────
-@pytest.mark.parametrize(
-    "query,expected",
-    [
-        ("Ronnie Coleman", "Ronnie Coleman"),
-        ("ronnie coleman", "Ronnie Coleman"),
-        ("Arnold", "Arnold Schwarzenegger"),
-        ("cbum is not in the roster by that name", None),
-        ("", None),
-        (None, None),
-    ],
-)
-def test_legend_by_name(query, expected):
-    result = gt.legend_by_name(query)
-    assert (result["name"] if result else None) == expected
-
-
 # ── get_persona ──────────────────────────────────────────────────────────────
 def test_get_persona_known_and_default():
     assert gt.get_persona("sergeant")["label"] == "Drill Sergeant"

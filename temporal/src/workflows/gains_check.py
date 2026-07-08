@@ -12,14 +12,7 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
-    from ..agents.tools.gains_tools import (
-        AGENTIC_TOOLS,
-        TOOLS,
-        VOICE_STYLES,
-        get_persona,
-        legend_by_name,
-        legend_roster_text,
-    )
+    from ..agents.tools.gains_tools import AGENTIC_TOOLS, TOOLS, VOICE_STYLES, get_persona
 
 MAX_ROUNDS = 5
 MAX_ROUNDS_AGENTIC = 6
@@ -29,18 +22,18 @@ _ACTIVITY_TIMEOUT = timedelta(seconds=30)
 def _agentic_system_prompt(persona: dict) -> str:
     return (
         f"You are {persona['voice']}, judging a lifter's tracked fitness numbers "
-        "(weight_kg, body_fat_pct, calories, protein_g; any may be missing).\n"
+        "(weight_kg, body_fat_pct, calories, protein_g; any may be missing). The input may instead "
+        "carry a `freeform` natural-language description of how they eat and train — if so, interpret "
+        "it yourself.\n"
         "Think for YOURSELF — there is no fixed formula. Use your own judgment about what good "
         "macros look like for someone's bodyweight and goals. If they logged no calories or "
         "protein, they aren't really tracking (fail, fail_kind='not_tracking'). If they log real "
         "numbers but they're weak, that's slacking (fail, fail_kind='slacking'). Otherwise pass.\n"
         "You have a search_gif tool — use it to find a GIF that fits your verdict; YOU pick the "
-        "search terms. You may call it several times (e.g. a hype/scolding GIF for the verdict and "
-        "one of the legend). Pick ONE legend to compare the user against from this roster and write "
-        f"a funny comparison: {legend_roster_text()}.\n"
+        "search terms. You may call it several times.\n"
         "When you're done searching, call submit_verdict exactly once with your verdict, the gif_url "
-        "you chose (paste a URL a search returned), your legend pick + comparison + its gif URL, and "
-        "the voice_style for how it should be spoken. Stay fully in character."
+        "you chose (paste a URL a search returned), and the voice_style for how it should be spoken. "
+        "Stay fully in character."
     )
 
 
@@ -64,6 +57,9 @@ def _system_prompt(persona: dict) -> str:
         "and protein_g matter for whether they're tracking, and protein is the bar for doing it "
         "right. Do NOT mark someone 'slacking' merely because weight or body fat is missing; if "
         "calories > 0 and protein_g >= 140, that is a PASS.\n"
+        "If instead a `freeform` field is present (a natural-language description of how they eat "
+        "and train), interpret it to estimate calories/protein/bodyweight and judge the SAME way — "
+        "only mark 'not_tracking' if they clearly aren't tracking their food at all.\n"
         "Always set fail_kind on a fail. Call submit_verdict exactly once with your decision. Stay in character."
     )
 
@@ -109,30 +105,6 @@ class GainsCheckWorkflow:
             {"via": "poller claim", "task_queue": "main", "persona": persona["label"]},
         )
 
-        # Pick the legend whose stats are closest to the user's numbers.
-        legend = await workflow.execute_activity(
-            "pick_legend", args=[user_input], start_to_close_timeout=_ACTIVITY_TIMEOUT
-        )
-        match_phrase = (
-            "your closest match among the legends" if legend.get("matched") else "a random legend (you gave no stats to match on)"
-        )
-        messages.append(
-            {
-                "role": "user",
-                "content": (
-                    f"Also compare me to {legend['name']} — {match_phrase} — contest weight "
-                    f"{legend['weight_kg']} kg, ~{legend['body_fat_pct']}% body fat, height "
-                    f"{legend['height_cm']} cm ({legend['fun_fact']}). In legend_quip, tell me in a "
-                    "funny way how close (or hilariously far) my numbers are to theirs."
-                ),
-            }
-        )
-        await emit(
-            "legend",
-            f"Legend · {legend['name']}",
-            {"name": legend["name"], "found": bool(legend.get("image_url")), "matched": bool(legend.get("matched"))},
-        )
-
         for rnd in range(MAX_ROUNDS):
             resp = await workflow.execute_activity(
                 "model_chat",
@@ -166,7 +138,7 @@ class GainsCheckWorkflow:
                 messages.append(
                     {
                         "role": "user",
-                        "content": "Call submit_verdict now with your final decision, including legend_quip.",
+                        "content": "Call submit_verdict now with your final decision.",
                     }
                 )
                 continue
@@ -196,16 +168,6 @@ class GainsCheckWorkflow:
                     "reason": args.get("reason") or "",
                     "persona": persona["label"],
                     "steps": steps,
-                    "legend": {
-                        "name": legend["name"],
-                        "weight_kg": legend["weight_kg"],
-                        "height_cm": legend["height_cm"],
-                        "body_fat_pct": legend["body_fat_pct"],
-                        "fun_fact": legend["fun_fact"],
-                        "image_url": legend.get("image_url"),
-                        "matched": bool(legend.get("matched")),
-                        "quip": args.get("legend_quip") or "",
-                    },
                 }
 
                 # Deterministic themed GIF: Ronnie/Arnold on a pass; on a fail the
@@ -254,9 +216,9 @@ class GainsCheckWorkflow:
 
         # Max rounds exceeded (rare — the verdict tool is forced). Rather than a
         # bare error, hand back a fun canned verdict so the demo never dead-ends.
-        return await self._fallback_verdict(check_id, persona, legend, steps, emit)
+        return await self._fallback_verdict(check_id, persona, steps, emit)
 
-    async def _fallback_verdict(self, check_id, persona, legend, steps, emit) -> dict:
+    async def _fallback_verdict(self, check_id, persona, steps, emit) -> dict:
         gif = await workflow.execute_activity(
             "fetch_verdict_gif", args=[False, "slacking"], start_to_close_timeout=_ACTIVITY_TIMEOUT
         )
@@ -271,16 +233,6 @@ class GainsCheckWorkflow:
             "reason": "The coach couldn't lock in a verdict — punch in your numbers and check again.",
             "persona": persona["label"],
             "steps": steps,
-            "legend": {
-                "name": legend["name"],
-                "weight_kg": legend["weight_kg"],
-                "height_cm": legend["height_cm"],
-                "body_fat_pct": legend["body_fat_pct"],
-                "fun_fact": legend["fun_fact"],
-                "image_url": legend.get("image_url"),
-                "matched": bool(legend.get("matched")),
-                "quip": f"We didn't get to size you up against {legend['name']} this time — run it back!",
-            },
         }
         audio_b64 = await workflow.execute_activity(
             "synthesize_speech", args=[spoken, persona["shame_style"], False], start_to_close_timeout=timedelta(seconds=30)
@@ -299,7 +251,7 @@ class GainsCheckWorkflow:
     # comparison, the headline, the spoken line, and the voice style itself.
     async def _execute_agentic(self, check_id: str, user_input: dict) -> dict:
         persona = get_persona(user_input.get("persona"))
-        numbers = {k: user_input.get(k) for k in ("weight_kg", "body_fat_pct", "calories", "protein_g")}
+        numbers = {k: user_input.get(k) for k in ("weight_kg", "body_fat_pct", "calories", "protein_g", "freeform")}
         messages: list[dict] = [
             {"role": "system", "content": _agentic_system_prompt(persona)},
             {"role": "user", "content": f"Here are my tracked numbers: {json.dumps(numbers)}. Judge me."},
@@ -391,29 +343,6 @@ class GainsCheckWorkflow:
         if voice_style not in VOICE_STYLES:
             voice_style = persona["hype_style"] if passed else persona["shame_style"]
 
-        # The model chose the legend; look up its stats (reference data) for the
-        # comparison table, and fetch a GIF of it only if the model didn't supply one.
-        legend_name = str(args.get("legend_name") or "").strip()
-        legend = None
-        if legend_name:
-            lg = legend_by_name(legend_name)
-            image_url = args.get("legend_gif_url") or None
-            if not image_url and lg:
-                found = await workflow.execute_activity(
-                    "search_gif", args=[lg["gif_query"]], start_to_close_timeout=_ACTIVITY_TIMEOUT
-                )
-                image_url = found.get("url")
-            legend = {
-                "name": legend_name,
-                "weight_kg": lg["weight_kg"] if lg else None,
-                "height_cm": lg["height_cm"] if lg else None,
-                "body_fat_pct": lg["body_fat_pct"] if lg else None,
-                "fun_fact": lg["fun_fact"] if lg else "",
-                "image_url": image_url,
-                "matched": None,  # the coach picked this one — not a computed match
-                "quip": args.get("legend_comparison") or "",
-            }
-
         default_headline = "YEAH BUDDY!" if passed else ("DO BETTER" if fail_kind == "slacking" else "YOU SHOULD")
         result = {
             "passed": passed,
@@ -426,7 +355,6 @@ class GainsCheckWorkflow:
             "reason": args.get("reason") or "",
             "persona": persona["label"],
             "steps": steps,
-            "legend": legend,
         }
 
         audio_b64 = await workflow.execute_activity(

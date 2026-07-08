@@ -14,6 +14,7 @@ from temporalio.client import Client
 from ..config import settings
 from ..workflows.entity_insight import EntityInsightWorkflow
 from ..workflows.gains_check import GainsCheckWorkflow
+from ..workflows.gains_plan import GainsPlanWorkflow
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,15 @@ async def poll_loop(client: Client, task_queue: str) -> None:
                     task_queue=task_queue,
                 )
                 logger.info("started gains workflow check_id=%s", check["id"])
+
+            for plan in await asyncio.to_thread(_claim, "gains_plans", "id,input"):
+                await client.start_workflow(
+                    GainsPlanWorkflow.run,
+                    args=[plan["id"], plan.get("input") or {}],
+                    id=f"gains-plan-{plan['id']}",
+                    task_queue=task_queue,
+                )
+                logger.info("started gains plan workflow plan_id=%s", plan["id"])
         except Exception:
             logger.exception("poller iteration failed")
         await asyncio.sleep(POLL_INTERVAL)

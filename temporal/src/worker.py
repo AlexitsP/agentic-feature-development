@@ -10,6 +10,7 @@ from .activities import supabase_core, notifications, insights, gains
 from .workflows.example.approval_workflow import ApprovalWorkflow
 from .workflows.entity_insight import EntityInsightWorkflow
 from .workflows.gains_check import GainsCheckWorkflow
+from .workflows.gains_plan import GainsPlanWorkflow
 from .runs.poller import poll_loop
 
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +25,7 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue=settings.temporal_task_queue,
-        workflows=[ApprovalWorkflow, EntityInsightWorkflow, GainsCheckWorkflow],
+        workflows=[ApprovalWorkflow, EntityInsightWorkflow, GainsCheckWorkflow, GainsPlanWorkflow],
         activities=[
             supabase_core.create_entity,
             supabase_core.update_entity_scd2,
@@ -39,8 +40,8 @@ async def main() -> None:
             insights.finalize_run,
             gains.search_gif,
             gains.fetch_verdict_gif,
-            gains.pick_legend,
             gains.finalize_gains,
+            gains.finalize_plan,
             gains.record_gains_event,
             gains.synthesize_speech,
         ],

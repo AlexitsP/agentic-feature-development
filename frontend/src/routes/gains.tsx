@@ -24,17 +24,19 @@ interface GainsResult {
   reason: string;
   persona?: string;
   audio_b64?: string | null;
-  legend?: {
-    name: string;
-    weight_kg: number | null;
-    height_cm: number | null;
-    body_fat_pct: number | null;
-    fun_fact: string;
-    image_url: string | null;
-    matched?: boolean | null;
-    quip: string;
-  } | null;
   steps?: Array<{ tool: string; args: Record<string, unknown>; result: { query?: string; source?: string } }>;
+}
+
+interface GainsPlan {
+  goal_label: string;
+  persona?: string;
+  summary: string;
+  calorie_guidance?: string;
+  protein_guidance?: string;
+  training_focus?: string;
+  weekly_steps: string[];
+  resources: { title: string; url: string }[];
+  panel?: { title: string; headline: string; points: string[] }[];
 }
 
 // Explainer shown under the engine toggle — swaps with the selected mode.
@@ -45,7 +47,7 @@ const MODE_INFO: Record<'guided' | 'agentic', { title: string; purpose: string; 
     rows: [
       [
         'How it works',
-        'The AI makes ONE structured decision — pass / fail and why — against explicit rules written into the prompt. Everything you then see and hear (the GIF, the meme quote, the rival legend, the voice style) is chosen by ordinary code from a curated library. One model call, no tool loop.',
+        'The AI makes ONE structured decision — pass / fail and why — against explicit rules written into the prompt. Everything you then see (the GIF, the meme quote) is chosen by ordinary code from a curated library. One model call, no tool loop.',
       ],
       [
         'Why have it',
@@ -60,13 +62,13 @@ const MODE_INFO: Record<'guided' | 'agentic', { title: string; purpose: string; 
     rows: [
       [
         'How it works',
-        'No fixed formula. The model judges your numbers on its own and has a real GIF-search tool it decides when and how to call — its own search terms, as many times as it likes. It picks the GIF, chooses a rival legend and writes the comparison, writes the headline and spoken line, and even chooses the voice style. A true reason → search → decide loop (watch the trace above).',
+        'No fixed formula. The model judges your numbers on its own and has a real GIF-search tool it decides when and how to call — its own search terms, as many times as it likes. It picks the GIF, writes the headline and spoken line, and even chooses the voice style. A true reason → search → decide loop (watch the trace above).',
       ],
       [
         'Why have it',
         'When you want adaptability, creativity and genuine tool use — the model can react to unusual inputs a fixed rule never anticipated — and you can accept more variability in exchange.',
       ],
-      ['What it means', 'The model drives; code just runs the tools it asks for. That’s a real agent trajectory — occasionally an off-brand GIF or odd rival is the honest price of the autonomy.'],
+      ['What it means', 'The model drives; code just runs the tools it asks for. That’s a real agent trajectory — occasionally an off-brand GIF is the honest price of the autonomy.'],
     ],
   },
 };
@@ -77,7 +79,18 @@ const PERSONAS = [
   { key: 'wholesome', emoji: '🤗', label: 'Wholesome Coach', blurb: 'Kind & encouraging' },
 ] as const;
 
-const STEP_LABELS = ['Engine', 'Coach', 'Your numbers', 'Result'] as const;
+const STEP_LABELS = ['Engine', 'Coach', 'Your numbers', 'Result', 'Plan'] as const;
+
+const GOALS = [
+  { key: 'recomp', emoji: '⚖️', label: 'Body recomposition', blurb: 'Lose fat, keep/gain muscle' },
+  { key: 'weight_loss', emoji: '📉', label: 'Weight loss', blurb: 'Calorie deficit, solid macros' },
+  { key: 'build_muscle', emoji: '💪', label: 'Build muscle', blurb: 'Lean bulk / hypertrophy' },
+  { key: 'get_lean', emoji: '🔪', label: 'Get lean', blurb: 'Cut down body fat' },
+] as const;
+
+// TTS is off for now (kept in code — flip to re-enable once the backend
+// AZURE_SPEECH_ENABLED flag is on too).
+const TTS_ENABLED = false;
 
 // Verdict theming: pass = green, "slacking" fail = amber, "not tracking" = red.
 function verdictTheme(r: GainsResult) {
@@ -132,11 +145,19 @@ function GainsCheck() {
   const [persona, setPersona] = useState<string>('gymbro');
   const [mode, setMode] = useState<'guided' | 'agentic'>('guided');
   const [step, setStep] = useState(0); // wizard: 0 Engine · 1 Coach · 2 Numbers · 3 Result
+  const [inputMode, setInputMode] = useState<'choose' | 'numbers' | 'freeform'>('choose');
+  const [freeform, setFreeform] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<GainsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkId, setCheckId] = useState<string | null>(null);
   const [events, setEvents] = useState<TraceEvent[]>([]);
+  const [goal, setGoal] = useState<string | null>(null);
+  const [goalDetail, setGoalDetail] = useState('');
+  const [planStatus, setPlanStatus] = useState<Status>('idle');
+  const [planResult, setPlanResult] = useState<GainsPlan | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [planCheckId, setPlanCheckId] = useState<string | null>(null);
   const startingRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
 
@@ -149,14 +170,17 @@ function GainsCheck() {
     setError(null);
     setEvents([]);
     setStatus('pending');
-    const input = {
-      weight_kg: num(form.weight_kg),
-      body_fat_pct: num(form.body_fat_pct),
-      calories: num(form.calories),
-      protein_g: num(form.protein_g),
-      persona,
-      mode,
-    };
+    const input =
+      inputMode === 'freeform'
+        ? { freeform: freeform.trim(), persona, mode }
+        : {
+            weight_kg: num(form.weight_kg),
+            body_fat_pct: num(form.body_fat_pct),
+            calories: num(form.calories),
+            protein_g: num(form.protein_g),
+            persona,
+            mode,
+          };
     const { data, error: insErr } = await supabase
       .from('gains_checks')
       .insert({ input, status: 'pending' })
@@ -169,7 +193,7 @@ function GainsCheck() {
       return;
     }
     setCheckId(data.id as string);
-  }, [form, persona, mode]);
+  }, [form, persona, mode, inputMode, freeform]);
 
   useEffect(() => {
     if (!checkId) return;
@@ -187,7 +211,7 @@ function GainsCheck() {
           if (row.error) setError(row.error);
           if (row.result) {
             setResult(row.result);
-            playResult(row.result);
+            if (TTS_ENABLED) playResult(row.result);
           }
         },
       )
@@ -211,7 +235,83 @@ function GainsCheck() {
     };
   }, [checkId]);
 
+  // Live subscription for the plan run (separate gains_plans row).
+  useEffect(() => {
+    if (!planCheckId) return;
+    const applyRow = (row: { status: Status; result: GainsPlan | null; error: string | null }) => {
+      setPlanStatus(row.status);
+      if (row.error) setPlanError(row.error);
+      if (row.result) setPlanResult(row.result);
+    };
+    const channel = supabase
+      .channel(`gains-plan-${planCheckId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'gains_plans', filter: `id=eq.${planCheckId}` },
+        (payload) => applyRow(payload.new as { status: Status; result: GainsPlan | null; error: string | null }),
+      )
+      .subscribe();
+    supabase
+      .from('gains_plans')
+      .select('status,result,error')
+      .eq('id', planCheckId)
+      .single()
+      .then(({ data }) => data && applyRow(data as { status: Status; result: GainsPlan | null; error: string | null }));
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [planCheckId]);
+
+  const generatePlan = useCallback(async () => {
+    setPlanResult(null);
+    setPlanError(null);
+    setPlanStatus('pending');
+    const numberInput =
+      inputMode === 'freeform'
+        ? { freeform: freeform.trim() }
+        : {
+            weight_kg: num(form.weight_kg),
+            body_fat_pct: num(form.body_fat_pct),
+            calories: num(form.calories),
+            protein_g: num(form.protein_g),
+          };
+    const input = {
+      goal: goal ?? 'custom',
+      goal_detail: goalDetail.trim(),
+      ...numberInput,
+      passed: result?.passed ?? null,
+      fail_kind: result?.fail_kind ?? null,
+      persona,
+      mode,
+    };
+    const { data, error: insErr } = await supabase.from('gains_plans').insert({ input, status: 'pending' }).select().single();
+    if (insErr || !data) {
+      setPlanStatus('error');
+      setPlanError(insErr?.message ?? 'Could not start.');
+      return;
+    }
+    setPlanCheckId(data.id as string);
+  }, [goal, goalDetail, inputMode, freeform, form, result, persona, mode]);
+
+  const resetAll = () => {
+    setResult(null);
+    setError(null);
+    setEvents([]);
+    setStatus('idle');
+    setCheckId(null);
+    setInputMode('choose');
+    setFreeform('');
+    setGoal(null);
+    setGoalDetail('');
+    setPlanResult(null);
+    setPlanError(null);
+    setPlanStatus('idle');
+    setPlanCheckId(null);
+    setStep(0);
+  };
+
   const busy = status === 'pending' || status === 'running';
+  const planBusy = planStatus === 'pending' || planStatus === 'running';
 
   const backendSteps = events.map((e) => {
     const d = e.detail ?? {};
@@ -321,8 +421,8 @@ function GainsCheck() {
           <li key={label} className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => !busy && i <= step && setStep(i)}
-              disabled={busy || i > step}
+              onClick={() => !busy && !planBusy && i <= step && setStep(i)}
+              disabled={busy || planBusy || i > step}
               className={`flex items-center gap-1.5 rounded-full px-2 py-1 transition-colors disabled:cursor-default ${
                 i === step
                   ? 'bg-primary/10 font-medium text-foreground'
@@ -450,30 +550,94 @@ function GainsCheck() {
 
         {step === 2 && (
           <div className="rounded-lg border p-4">
-            <div className="mb-3 text-sm text-muted-foreground">
-              Your tracked numbers <span className="text-xs">(leave blank what you don't log)</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {(
-                [
-                  ['weight_kg', 'Bodyweight (kg)'],
-                  ['body_fat_pct', 'Body fat (%)'],
-                  ['calories', 'Calories (kcal)'],
-                  ['protein_g', 'Protein (g)'],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="flex flex-col gap-1 text-sm">
-                  <span className="text-muted-foreground">{label}</span>
-                  <input
-                    type="number"
-                    value={form[key]}
-                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                    className="rounded-md border px-3 py-2"
-                    placeholder="—"
-                  />
-                </label>
-              ))}
-            </div>
+            {inputMode === 'choose' && (
+              <>
+                <div className="mb-3 text-sm text-muted-foreground">How do you want to give your stats?</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('numbers')}
+                    className="flex flex-col gap-1 rounded-md border px-3 py-4 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <span className="text-sm font-medium">🔢 I know my numbers</span>
+                    <span className="text-xs leading-snug text-muted-foreground">
+                      Enter your bodyweight (kg), body fat (%), daily calories (kcal) and protein (g).
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('freeform')}
+                    className="flex flex-col gap-1 rounded-md border px-3 py-4 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <span className="text-sm font-medium">💬 I don't know my numbers</span>
+                    <span className="text-xs leading-snug text-muted-foreground">
+                      A prompt opens where you describe your eating &amp; training in plain words — the coach makes sense of it.
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {inputMode === 'numbers' && (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Your tracked numbers <span className="text-xs">(leave blank what you don't log)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('choose')}
+                    className="shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted/50"
+                  >
+                    ← Change method
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {(
+                    [
+                      ['weight_kg', 'Bodyweight (kg)'],
+                      ['body_fat_pct', 'Body fat (%)'],
+                      ['calories', 'Calories (kcal)'],
+                      ['protein_g', 'Protein (g)'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label key={key} className="flex flex-col gap-1 text-sm">
+                      <span className="text-muted-foreground">{label}</span>
+                      <input
+                        type="number"
+                        value={form[key]}
+                        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                        className="rounded-md border px-3 py-2"
+                        placeholder="—"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {inputMode === 'freeform' && (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Describe your eating &amp; training in your own words</span>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('choose')}
+                    className="shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted/50"
+                  >
+                    ← Change method
+                  </button>
+                </div>
+                <textarea
+                  value={freeform}
+                  onChange={(e) => setFreeform(e.target.value)}
+                  rows={5}
+                  placeholder="e.g. I'm around 90 kg, eat roughly 3000 calories and about 180 g of protein most days, lift 4x a week — no idea on my body fat."
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">The coach interprets this — the more detail, the sharper the verdict.</p>
+              </>
+            )}
           </div>
         )}
 
@@ -529,50 +693,150 @@ function GainsCheck() {
                 </div>
                 <p className="mt-4 text-lg font-medium">{result.reason}</p>
                 <p className="mt-1 text-sm text-muted-foreground">🔊 “{result.spoken_line}”</p>
-                <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
-                  replay sound
+                {TTS_ENABLED && (
+                  <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
+                    replay sound
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-4">
+            <div className="rounded-lg border p-4">
+              <div className="mb-2 text-sm text-muted-foreground">
+                What's your goal? A coach panel (nutrition · training · recovery) drafts a research-based starter plan.
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {GOALS.map((g) => (
+                  <button
+                    key={g.key}
+                    type="button"
+                    onClick={() => setGoal(g.key)}
+                    disabled={planBusy}
+                    className={`flex flex-col gap-0.5 rounded-md border px-3 py-3 text-left transition-colors disabled:opacity-50 ${
+                      goal === g.key ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    <span className="text-sm font-medium">
+                      {g.emoji} {g.label}
+                    </span>
+                    <span className="text-xs leading-snug text-muted-foreground">{g.blurb}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setGoal('custom')}
+                  disabled={planBusy}
+                  className={`flex flex-col gap-0.5 rounded-md border px-3 py-3 text-left transition-colors disabled:opacity-50 sm:col-span-2 ${
+                    goal === 'custom' ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  <span className="text-sm font-medium">💬 Let me explain</span>
+                  <span className="text-xs leading-snug text-muted-foreground">Describe your goal in your own words.</span>
                 </button>
+              </div>
+              {goal === 'custom' && (
+                <textarea
+                  value={goalDetail}
+                  onChange={(e) => setGoalDetail(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. I want to look good for a wedding in 3 months but keep my strength up."
+                  className="mt-2 w-full rounded-md border px-3 py-2 text-sm"
+                />
+              )}
+            </div>
+
+            {planError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{planError}</div>
+            )}
+
+            {planBusy && (
+              <div className="rounded-xl border p-8 text-center">
+                <div className="animate-pulse text-4xl">🧠</div>
+                <p className="mt-3 text-lg font-medium">THE COACH PANEL IS RESEARCHING…</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  A nutrition, a training and a recovery specialist are weighing in — then the head coach synthesizes your plan.
+                </p>
               </div>
             )}
 
-            {result && status === 'done' && result.legend && (
-              <div className="rounded-xl border p-4">
-                <div className="mb-3 text-sm font-medium">
-                  🏆 You vs {result.legend.name}
-                  <span className="ml-2 font-normal text-muted-foreground">
-                    {result.mode === 'agentic'
-                      ? "· coach's pick"
-                      : result.legend.matched
-                        ? '· your closest match'
-                        : '· random rival'}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-4 sm:flex-row">
-                  {result.legend.image_url && (
-                    <img
-                      src={result.legend.image_url}
-                      alt={result.legend.name}
-                      className="h-40 w-40 shrink-0 rounded-lg object-cover"
-                    />
-                  )}
-                  <div className="flex-1 space-y-3">
-                    <p className="text-sm">{result.legend.quip}</p>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="font-medium text-muted-foreground">Metric</div>
-                      <div className="font-medium">You</div>
-                      <div className="font-medium">{result.legend.name}</div>
-
-                      <div className="text-muted-foreground">Weight (kg)</div>
-                      <div>{form.weight_kg || '—'}</div>
-                      <div>{result.legend.weight_kg ?? '—'}</div>
-
-                      <div className="text-muted-foreground">Body fat (%)</div>
-                      <div>{form.body_fat_pct || '—'}</div>
-                      <div>{result.legend.body_fat_pct ?? '—'}</div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{result.legend.fun_fact}</p>
+            {planResult && planStatus === 'done' && (
+              <div className="space-y-4">
+                <div className="rounded-xl border-2 border-primary/50 p-5">
+                  <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
+                    🎯 {planResult.goal_label}
+                    {planResult.persona ? ` · ${planResult.persona}` : ''}
                   </div>
+                  <p className="text-base">{planResult.summary}</p>
+                  <div className="mt-4 grid gap-2 text-sm">
+                    {planResult.calorie_guidance && (
+                      <div>
+                        <span className="font-semibold">🔥 Calories:</span> {planResult.calorie_guidance}
+                      </div>
+                    )}
+                    {planResult.protein_guidance && (
+                      <div>
+                        <span className="font-semibold">🥩 Protein:</span> {planResult.protein_guidance}
+                      </div>
+                    )}
+                    {planResult.training_focus && (
+                      <div>
+                        <span className="font-semibold">🏋️ Training:</span> {planResult.training_focus}
+                      </div>
+                    )}
+                  </div>
+                  {planResult.weekly_steps?.length > 0 && (
+                    <div className="mt-4">
+                      <div className="mb-1 text-sm font-semibold">This week</div>
+                      <ol className="list-decimal space-y-1 pl-5 text-sm">
+                        {planResult.weekly_steps.map((s, i) => (
+                          <li key={i}>{s}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                  {planResult.resources?.length > 0 && (
+                    <div className="mt-4">
+                      <div className="mb-1 text-sm font-semibold">Resources</div>
+                      <ul className="space-y-1 text-sm">
+                        {planResult.resources.map((r, i) => (
+                          <li key={i}>
+                            🔗{' '}
+                            <a href={r.url} target="_blank" rel="noreferrer" className="underline">
+                              {r.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
+
+                {planResult.panel && planResult.panel.length > 0 && (
+                  <details className="rounded-lg border bg-muted/30 text-sm">
+                    <summary className="cursor-pointer select-none px-3 py-2 font-medium">
+                      🧩 How this was made — the coach panel ({planResult.panel.length} agents + a head-coach synthesis)
+                    </summary>
+                    <div className="space-y-3 border-t px-3 py-3">
+                      {planResult.panel.map((p, i) => (
+                        <div key={i}>
+                          <div className="text-sm font-medium">{p.title}</div>
+                          {p.headline && <div className="text-xs text-muted-foreground">{p.headline}</div>}
+                          {p.points?.length > 0 && (
+                            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
+                              {p.points.map((pt, j) => (
+                                <li key={j}>{pt}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </div>
@@ -584,7 +848,7 @@ function GainsCheck() {
         <button
           type="button"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
-          disabled={step === 0 || busy}
+          disabled={step === 0 || busy || planBusy}
           className="rounded-md border px-4 py-2 text-sm disabled:opacity-40"
         >
           ← Back
@@ -606,28 +870,52 @@ function GainsCheck() {
               start();
               setStep(3);
             }}
-            disabled={busy}
+            disabled={busy || inputMode === 'choose'}
             className="rounded-md bg-primary px-6 py-2 text-base font-bold text-primary-foreground disabled:opacity-50"
           >
             {busy ? 'COACH IS LOOKING…' : '💪 CHECK MY GAINS'}
           </button>
         )}
         {step === 3 && (
-          <button
-            type="button"
-            onClick={() => {
-              setResult(null);
-              setError(null);
-              setEvents([]);
-              setStatus('idle');
-              setCheckId(null);
-              setStep(0);
-            }}
-            disabled={busy}
-            className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-          >
-            ↻ Start over
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={resetAll}
+              disabled={busy}
+              className="rounded-md border px-4 py-2 text-sm disabled:opacity-40"
+            >
+              ↻ Start over
+            </button>
+            {status === 'done' && (
+              <button
+                type="button"
+                onClick={() => setStep(4)}
+                className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
+              >
+                Next: Plan →
+              </button>
+            )}
+          </div>
+        )}
+        {step === 4 && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={resetAll}
+              disabled={planBusy}
+              className="rounded-md border px-4 py-2 text-sm disabled:opacity-40"
+            >
+              ↻ Start over
+            </button>
+            <button
+              type="button"
+              onClick={generatePlan}
+              disabled={planBusy || !goal}
+              className="rounded-md bg-primary px-5 py-2 text-sm font-bold text-primary-foreground disabled:opacity-50"
+            >
+              {planBusy ? 'PANEL WORKING…' : planResult ? '↻ Regenerate plan' : '🎯 Create my plan'}
+            </button>
+          </div>
         )}
       </div>
     </div>
