@@ -8,7 +8,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/data/supabase';
-import { ensureSession } from '@/data/auth';
+import { ensureSessionIf } from '@/data/auth';
+import { featureRequiresAuth } from '@/features/registry';
 import { ConfidenceBadge } from '@/components/ConfidenceBadge';
 
 export const Route = createFileRoute('/plan')({
@@ -79,7 +80,7 @@ function StudyPlanner() {
     setError(null);
     setEvents([]);
     setStatus('pending');
-    await ensureSession(); // ADR-0007: owner-scoped study_plans needs an authenticated session
+    await ensureSessionIf(featureRequiresAuth('plan')); // ADR-0011: gate only if this feature requires auth
     const input = { ...form, persona };
     const { data, error: insErr } = await supabase.from('study_plans').insert({ input, status: 'pending' }).select().single();
     if (insErr || !data) {

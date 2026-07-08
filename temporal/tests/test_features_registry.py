@@ -21,3 +21,10 @@ def test_model_chat_registered_once():
 
 def test_enabled_features():
     assert [f.key for f in FEATURES if f.enabled] == ["program_evaluator", "study_planner"]
+
+
+def test_requires_auth_declared_per_feature():
+    # ADR-0011: each feature declares its auth posture; must match its DB RLS.
+    ra = {f.key: f.requires_auth for f in FEATURES}
+    assert ra["program_evaluator"] is False  # open-anon during the experiment
+    assert ra["study_planner"] is True  # owner-scoped (ADR-0007)

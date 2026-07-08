@@ -19,3 +19,8 @@ export function ensureSession(): Promise<void> {
   }
   return sessionPromise;
 }
+
+/** ADR-0011: ensure a session only for features that declare `requiresAuth`. */
+export function ensureSessionIf(required: boolean): Promise<void> {
+  return required ? ensureSession() : Promise.resolve();
+}
