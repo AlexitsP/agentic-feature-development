@@ -1,93 +1,51 @@
 # Architecture Overview
 
-This directory holds the **cross-cutting architecture documentation** for this
-project — the diagrams and narrative that tie the subsystems together. It
-complements, and does not replace:
+Cross-cutting architecture docs for **Plan my studies** — the narrative that ties the
+subsystems together. It complements, not replaces:
 
 - [`docs/adrs/`](../adrs/) — **why** each decision was made (the binding record).
-- [`docs/specs/`](../specs/) — the **detailed designs** for individual slices.
+- [`docs/specs/`](../specs/) — the **detailed designs** for individual features.
+- [`../Documentation_Index.md`](../Documentation_Index.md) — the top-level doc index.
 
-Read this when you want the *shape of the whole system*; drop into the ADRs and
-specs when you need the depth on a particular decision.
-
-> All diagrams below render natively on GitHub (Mermaid). Replace the placeholder
-> labels with your system's real containers, then let each subsystem page go deeper.
+Read this for the *shape of the whole system*; drop into the ADRs and specs for depth.
 
 ## What this system is
 
-This repository ships **a product plus the factory that builds it**:
-
-1. **The product** — a Supabase + Temporal + Vite/React app: the **Gains Check** demo (check +
-   multi-agent plan). See [`product-architecture.md`](./product-architecture.md) for the shape.
-   (The repo was trimmed to Gains-only — [ADR-0006](../adrs/0006-trim-to-gains-only-minimal-repo.md);
-   Entity Insights references in these docs are historical.)
-2. **The Software Factory** — GitHub Actions + role-based AI agents (see
-   [`.github/agents/`](../../.github/agents/)) that triage, design, build, review,
-   and ship the product. Configured via [`.github/factory.yml`](../../.github/factory.yml).
-3. _(Optional)_ **The Operations Factory** — scheduled agentic workflows that
-   automate back-office operations for the people who use the product.
+A Swiss higher-education advisor built as a **kernel + feature-plugin platform** on
+Supabase + Temporal + Vite/React + Azure OpenAI. A small shared **kernel** provides the run
+lifecycle, model access, live tracing, confidence scoring, source grounding, and auth; each
+capability is a self-contained **feature** that registers itself (ADR-0008). Features today:
+the **Program Evaluator** (`/evaluate`) and the **Study Planner** (`/plan`).
 
 ```mermaid
-flowchart TB
-    subgraph Builds["🏭 Software Factory — builds the product"]
-        direction LR
-        GHA["GitHub Actions<br/>cadence pipelines"] --> Agents["Role-based agents<br/>(PM, reviewers, architect…)"]
-        Agents --> Copilot["Coding agent<br/>(implements)"]
+flowchart LR
+    browser["Browser · Vite/React SPA"]
+    subgraph supa["Supabase (host)"]
+      pg[("Postgres + PostgREST + Realtime + Auth")]
     end
-
-    subgraph Product["📦 The Product — <APP_NAME>"]
-        direction LR
-        FE["Frontend"]
-        DB[("Database")]
-        WORKER["Worker / orchestration"]
-        FE --> DB
-        WORKER --> DB
+    subgraph docker["Docker (Rancher)"]
+      worker["temporal-worker · poller + workflows + activities"]
+      temporal["temporal server"]
     end
+    azoai["Azure OpenAI · gpt-5-mini"]
 
-    Builds -->|ships code & images| Product
-    Users(["End users"]) --> FE
-    Maintainers(["Maintainers"]) -.->|epics & guardrails| Builds
-```
-
-## C4 Level 1 — System context
-
-```mermaid
-flowchart TB
-    user(["End users"])
-    maint(["Maintainers"])
-    gh(["GitHub<br/>(issues · PRs · Actions)"])
-
-    sys["<b><APP_NAME></b><br/>_\<one-line system description\>_"]
-
-    user -->|uses| sys
-    maint -->|files epics, sets guardrails| sys
-    sys -->|orchestrates issues/PRs| gh
-    gh -->|runs agents & CI| sys
-```
-
-## C4 Level 2 — Containers
-
-```mermaid
-flowchart TB
-    subgraph cluster["Cluster (<AKS_CLUSTER_NONPROD>)"]
-        subgraph nsapp["ns: <DEV_NAMESPACE> / <TEST_NAMESPACE>"]
-            fe["frontend"]
-            worker["worker"]
-        end
-    end
-
-    fe --> worker
+    browser -->|"insert row / subscribe / auth"| pg
+    worker -->|"claim rows, write result (service role)"| pg
+    worker --> temporal
+    worker -->|"model_chat"| azoai
 ```
 
 ## The pages
 
 | Page | What it covers |
 |------|----------------|
-| [Product architecture](./product-architecture.md) | **The main page** — request lifecycle, components, data model, the two Gains engines, external deps |
+| [Product architecture](./product-architecture.md) | **The main page** — run-row lifecycle, kernel↔feature boundary, cross-cutting concerns, data model |
+| [Tech Stack](../TECH_STACK.md) | Every technology + version + why |
+| [Testing Manifesto](../TESTING.md) | What we test, where, how; what CI can't reach |
 | [ADRs](../adrs/) | The binding record of *why* each decision was made |
-| [Specs](../specs/) | Detailed designs for individual feature slices |
+| [Specs](../specs/) | Detailed designs for individual features |
 | [Onboarding](../../ONBOARDING.md) | Get a fresh clone running and make a first change |
 
-> The Software-Factory / multi-env AKS content above is inherited from the template. This fork
-> runs the **product locally** and keeps the factory/deploy pipelines disabled — see
-> [ADR-0004](../adrs/0004-deployment-posture-local-only.md).
+> The stack ships hardened Helm charts under `charts/app/`, but runs **local-only** and keeps
+> the deploy pipelines disabled — see [ADR-0004](../adrs/0004-deployment-posture-local-only.md).
+> Owner-scoped auth (ADR-0007) is the gate for any multi-user/hosted use.
