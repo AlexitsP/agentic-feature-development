@@ -13,15 +13,6 @@ export const Route = createFileRoute('/gains')({
   component: GainsCheck,
 });
 
-// "Meta" stats for the whole AI build session (from Claude Code /cost).
-// Note: the 171M cache-read tokens are the conversation re-read each turn, not
-// unique work — so they're shown separately from newly-generated tokens.
-const BUILD_STATS = {
-  time: '3h 59m (2h 8m API)',
-  cost: '$107.84',
-  tokens: '~475k generated · 171M cache reads',
-};
-
 interface GainsResult {
   passed: boolean;
   fail_kind?: 'not_tracking' | 'slacking' | null;
@@ -86,6 +77,8 @@ const PERSONAS = [
   { key: 'wholesome', emoji: '🤗', label: 'Wholesome Coach', blurb: 'Kind & encouraging' },
 ] as const;
 
+const STEP_LABELS = ['Engine', 'Coach', 'Your numbers', 'Result'] as const;
+
 // Verdict theming: pass = green, "slacking" fail = amber, "not tracking" = red.
 function verdictTheme(r: GainsResult) {
   if (r.passed) return { border: 'border-green-500', bg: 'bg-green-500/10', text: 'text-green-500', flash: false, emoji: '💪🔥' };
@@ -138,13 +131,13 @@ function GainsCheck() {
   const [form, setForm] = useState({ weight_kg: '', body_fat_pct: '', calories: '', protein_g: '' });
   const [persona, setPersona] = useState<string>('gymbro');
   const [mode, setMode] = useState<'guided' | 'agentic'>('guided');
+  const [step, setStep] = useState(0); // wizard: 0 Engine · 1 Coach · 2 Numbers · 3 Result
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<GainsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkId, setCheckId] = useState<string | null>(null);
   const [events, setEvents] = useState<TraceEvent[]>([]);
   const startingRef = useRef(false);
-  const activeStepRef = useRef<HTMLLIElement | null>(null);
   const resultRef = useRef<HTMLDivElement | null>(null);
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v));
@@ -306,11 +299,6 @@ function GainsCheck() {
   const showTrace = status !== 'idle';
   const lastDoneIndex = steps.reduce((acc, s, i) => (s.done ? i : acc), 0);
 
-  // Keep the newest active step scrolled into view as the trace advances.
-  useEffect(() => {
-    activeStepRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [events.length, status]);
-
   // When the verdict lands, scroll down to it.
   useEffect(() => {
     if (status === 'done' && result) {
@@ -319,237 +307,329 @@ function GainsCheck() {
   }, [status, result]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <style>{`@keyframes gainsflash{0%,49%{opacity:1}50%,100%{opacity:.15}}`}</style>
-      <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-muted/30 px-4 py-2 text-sm">
-        <span className="w-full text-xs text-muted-foreground">Built by AI in one session (everything, not just this page):</span>
-        <span>
-          ⏱️ <span className="text-muted-foreground">Built in:</span>{' '}
-          <span className="font-semibold">{BUILD_STATS.time}</span>
-        </span>
-        <span>
-          💵 <span className="text-muted-foreground">Cost:</span>{' '}
-          <span className="font-semibold">{BUILD_STATS.cost}</span>
-        </span>
-        <span>
-          🪙 <span className="text-muted-foreground">Tokens:</span>{' '}
-          <span className="font-semibold">{BUILD_STATS.tokens}</span>
-        </span>
-      </div>
+    <div className="mx-auto max-w-2xl">
+      <style>{`@keyframes gainsflash{0%,49%{opacity:1}50%,100%{opacity:.15}}@keyframes stepfade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`}</style>
 
-      <div>
+      <div className="mb-4">
         <h1 className="text-3xl font-bold tracking-tight">💪 Gains Check</h1>
         <p className="text-muted-foreground">Track your macros? The coach will let you know.</p>
       </div>
 
-      <div className="rounded-lg border p-4">
-        <div className="mb-2 text-sm text-muted-foreground">Engine</div>
-        <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              ['guided', '🎛️', 'Guided', 'Deterministic pipeline. Rule-based verdict, curated GIFs & quotes. Reliable.'],
-              ['agentic', '🤖', 'Agentic', 'The model reasons freely, picks & searches its own GIFs, chooses the rival & voice.'],
-            ] as const
-          ).map(([key, emoji, label, blurb]) => (
+      {/* Step indicator (click a completed step to go back) */}
+      <ol className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        {STEP_LABELS.map((label, i) => (
+          <li key={label} className="flex items-center gap-2">
             <button
-              key={key}
               type="button"
-              onClick={() => setMode(key)}
-              disabled={busy}
-              className={`flex flex-col gap-0.5 rounded-md border px-3 py-3 text-left transition-colors disabled:opacity-50 ${
-                mode === key ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+              onClick={() => !busy && i <= step && setStep(i)}
+              disabled={busy || i > step}
+              className={`flex items-center gap-1.5 rounded-full px-2 py-1 transition-colors disabled:cursor-default ${
+                i === step
+                  ? 'bg-primary/10 font-medium text-foreground'
+                  : i < step
+                    ? 'text-foreground hover:bg-muted/50'
+                    : 'text-muted-foreground'
               }`}
             >
-              <span className="text-sm font-medium">
-                {emoji} {label}
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                  i <= step ? 'bg-primary text-primary-foreground' : 'border'
+                }`}
+              >
+                {i < step ? '✓' : i + 1}
               </span>
-              <span className="text-xs leading-snug text-muted-foreground">{blurb}</span>
+              {label}
             </button>
-          ))}
-        </div>
+            {i < STEP_LABELS.length - 1 && <span className="text-muted-foreground">›</span>}
+          </li>
+        ))}
+      </ol>
 
-        <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm">
-          <div className="font-medium">{MODE_INFO[mode].title}</div>
-          <p className="mt-1 text-muted-foreground">{MODE_INFO[mode].purpose}</p>
-          <dl className="mt-3 space-y-2">
-            {MODE_INFO[mode].rows.map(([label, text]) => (
-              <div key={label} className="grid grid-cols-[7.5rem_1fr] gap-2">
-                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
-                <dd className="leading-snug text-muted-foreground">{text}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </div>
-
+      {/* Floating side trace navigator (desktop) — independent of the wizard step. */}
       {showTrace && (
-        <div className="rounded-lg border p-4">
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="font-medium">Request trace</span>
-            <span className="text-muted-foreground">
-              {totalTokens > 0 ? `${totalTokens} tokens` : '—'}
-              {busy && <span className="ml-2 animate-pulse">● live</span>}
-            </span>
+        <nav
+          aria-label="Request trace"
+          className="group fixed right-3 top-1/2 z-40 hidden -translate-y-1/2 flex-col items-end gap-1.5 lg:flex"
+        >
+          <div className="mb-0.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            trace {busy && <span className="animate-pulse text-primary">●</span>}
           </div>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Follow your request as it travels from the browser, through the AI agent and its tools, and back to the screen.
-          </p>
-          <div className="mb-3 h-1.5 w-full overflow-hidden rounded bg-muted">
-            <div className="h-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
+          {steps.map((s, i) => {
+            const active = i === lastDoneIndex && status !== 'done';
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <span
+                  className={`max-w-[16rem] truncate rounded bg-background/90 px-1.5 py-0.5 text-[11px] shadow-sm backdrop-blur transition-all duration-200 ${
+                    active ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:opacity-100'
+                  } ${s.done ? 'text-foreground' : 'text-muted-foreground'}`}
+                >
+                  {s.icon} {s.label} · {s.sub}
+                  {s.tokens != null && <span className="ml-1 text-muted-foreground">({s.tokens} tok)</span>}
+                </span>
+                <span
+                  className={`h-1 rounded-full transition-all duration-300 ${
+                    active ? 'w-8 bg-primary' : s.done ? 'w-5 bg-primary/60' : 'w-3 bg-muted-foreground/30'
+                  }`}
+                />
+              </div>
+            );
+          })}
+          <div className="mt-0.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+            {totalTokens > 0 ? `${totalTokens} tokens` : ''}
           </div>
-          <ol className="flex items-stretch gap-1 overflow-x-auto pb-1">
-            {steps.map((s, i) => (
-              <li key={i} ref={i === lastDoneIndex ? activeStepRef : undefined} className="flex items-center gap-1">
-                {i > 0 && <span className="text-muted-foreground">→</span>}
-                <div
-                  className={`flex w-[200px] shrink-0 flex-col rounded-md border px-3 py-2 text-xs transition-opacity ${
-                    s.done ? 'opacity-100' : 'opacity-40'
+        </nav>
+      )}
+
+      {/* Step panel — fades in on every forward/back change (keyed by step) */}
+      <div key={step} style={{ animation: 'stepfade .25s ease' }} className="min-h-[16rem]">
+        {step === 0 && (
+          <div className="rounded-lg border p-4">
+            <div className="mb-2 text-sm text-muted-foreground">Engine</div>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ['guided', '🎛️', 'Guided', 'Deterministic pipeline. Rule-based verdict, curated GIFs & quotes. Reliable.'],
+                  ['agentic', '🤖', 'Agentic', 'The model reasons freely, picks & searches its own GIFs, chooses the rival & voice.'],
+                ] as const
+              ).map(([key, emoji, label, blurb]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMode(key)}
+                  className={`flex flex-col gap-0.5 rounded-md border px-3 py-3 text-left transition-colors ${
+                    mode === key ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-center gap-1">
-                    <span>{s.icon}</span>
-                    <span className="font-medium">{s.label}</span>
-                  </div>
-                  <span className="text-muted-foreground">{s.sub}</span>
-                  {s.desc && <span className="mt-1 leading-snug text-muted-foreground">{s.desc}</span>}
-                  {s.tokens != null && (
-                    <span className="mt-1 inline-block w-fit rounded bg-secondary px-1.5 py-0.5">{s.tokens} tokens used</span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
+                  <span className="text-sm font-medium">
+                    {emoji} {label}
+                  </span>
+                  <span className="text-xs leading-snug text-muted-foreground">{blurb}</span>
+                </button>
+              ))}
+            </div>
 
-      <div className="rounded-lg border p-4">
-        <div className="mb-2 text-sm text-muted-foreground">Pick your coach</div>
-        <div className="grid grid-cols-3 gap-2">
-          {PERSONAS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => setPersona(p.key)}
-              disabled={busy}
-              className={`flex flex-col items-center gap-0.5 rounded-md border px-2 py-3 text-center transition-colors disabled:opacity-50 ${
-                persona === p.key ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
-              }`}
-            >
-              <span className="text-2xl">{p.emoji}</span>
-              <span className="text-sm font-medium">{p.label}</span>
-              <span className="text-xs text-muted-foreground">{p.blurb}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
-        {(
-          [
-            ['weight_kg', 'Bodyweight (kg)'],
-            ['body_fat_pct', 'Body fat (%)'],
-            ['calories', 'Calories (kcal)'],
-            ['protein_g', 'Protein (g)'],
-          ] as const
-        ).map(([key, label]) => (
-          <label key={key} className="flex flex-col gap-1 text-sm">
-            <span className="text-muted-foreground">{label}</span>
-            <input
-              type="number"
-              value={form[key]}
-              onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-              className="rounded-md border px-3 py-2"
-              placeholder="—"
-            />
-          </label>
-        ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={start}
-        disabled={busy}
-        className="w-full rounded-md bg-primary py-3 text-lg font-bold text-primary-foreground disabled:opacity-50"
-      >
-        {busy ? 'COACH IS LOOKING…' : 'CHECK MY GAINS'}
-      </button>
-
-      {error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-
-      {result && status === 'done' && (
-        <div ref={resultRef} className={`scroll-mt-4 rounded-xl border-4 p-6 text-center ${verdictTheme(result).border} ${verdictTheme(result).bg}`}>
-          <div className="mb-2 flex items-center justify-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-            {result.persona && <span>Coach: {result.persona}</span>}
-            <span className="rounded-full border px-2 py-0.5 normal-case">
-              {result.mode === 'agentic' ? '🤖 Agentic' : '🎛️ Guided'}
-            </span>
-          </div>
-          <div
-            className={`text-5xl font-extrabold ${verdictTheme(result).text}`}
-            style={verdictTheme(result).flash ? { animation: 'gainsflash 0.5s steps(1) infinite' } : undefined}
-          >
-            {result.headline}
-          </div>
-          <div className="mt-4 flex justify-center">
-            {result.gif_url ? (
-              <img src={result.gif_url} alt={result.headline} className="max-h-72 rounded-lg" />
-            ) : (
-              <div className="text-7xl">{verdictTheme(result).emoji}</div>
-            )}
-          </div>
-          <p className="mt-4 text-lg font-medium">{result.reason}</p>
-          <p className="mt-1 text-sm text-muted-foreground">🔊 “{result.spoken_line}”</p>
-          {result.steps && result.steps.length > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              agent fetched: {result.steps.map((s) => `${s.result?.query ?? ''} (${s.result?.source ?? ''})`).join(', ')}
-            </p>
-          )}
-          <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
-            replay sound
-          </button>
-        </div>
-      )}
-
-      {result && status === 'done' && result.legend && (
-        <div className="rounded-xl border p-4">
-          <div className="mb-3 text-sm font-medium">
-            🏆 You vs {result.legend.name}
-            <span className="ml-2 font-normal text-muted-foreground">
-              {result.mode === 'agentic'
-                ? "· coach's pick"
-                : result.legend.matched
-                  ? '· your closest match'
-                  : '· random rival'}
-            </span>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row">
-            {result.legend.image_url && (
-              <img
-                src={result.legend.image_url}
-                alt={result.legend.name}
-                className="h-40 w-40 shrink-0 rounded-lg object-cover"
-              />
-            )}
-            <div className="flex-1 space-y-3">
-              <p className="text-sm">{result.legend.quip}</p>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="font-medium text-muted-foreground">Metric</div>
-                <div className="font-medium">You</div>
-                <div className="font-medium">{result.legend.name}</div>
-
-                <div className="text-muted-foreground">Weight (kg)</div>
-                <div>{form.weight_kg || '—'}</div>
-                <div>{result.legend.weight_kg ?? '—'}</div>
-
-                <div className="text-muted-foreground">Body fat (%)</div>
-                <div>{form.body_fat_pct || '—'}</div>
-                <div>{result.legend.body_fat_pct ?? '—'}</div>
+            <details className="mt-3 rounded-md border bg-muted/30 text-sm">
+              <summary className="cursor-pointer select-none px-3 py-2 font-medium">What this does?</summary>
+              <div className="border-t px-3 py-2">
+                <div className="font-medium">{MODE_INFO[mode].title}</div>
+                <p className="mt-1 text-muted-foreground">{MODE_INFO[mode].purpose}</p>
+                <dl className="mt-3 space-y-2">
+                  {MODE_INFO[mode].rows.map(([label, text]) => (
+                    <div key={label} className="grid grid-cols-[7.5rem_1fr] gap-2">
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
+                      <dd className="leading-snug text-muted-foreground">{text}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
-              <p className="text-xs text-muted-foreground">{result.legend.fun_fact}</p>
+            </details>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="rounded-lg border p-4">
+            <div className="mb-2 text-sm text-muted-foreground">Pick your coach</div>
+            <div className="grid grid-cols-3 gap-2">
+              {PERSONAS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setPersona(p.key)}
+                  className={`flex flex-col items-center gap-0.5 rounded-md border px-2 py-3 text-center transition-colors ${
+                    persona === p.key ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  <span className="text-2xl">{p.emoji}</span>
+                  <span className="text-sm font-medium">{p.label}</span>
+                  <span className="text-xs text-muted-foreground">{p.blurb}</span>
+                </button>
+              ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {step === 2 && (
+          <div className="rounded-lg border p-4">
+            <div className="mb-3 text-sm text-muted-foreground">
+              Your tracked numbers <span className="text-xs">(leave blank what you don't log)</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {(
+                [
+                  ['weight_kg', 'Bodyweight (kg)'],
+                  ['body_fat_pct', 'Body fat (%)'],
+                  ['calories', 'Calories (kcal)'],
+                  ['protein_g', 'Protein (g)'],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="flex flex-col gap-1 text-sm">
+                  <span className="text-muted-foreground">{label}</span>
+                  <input
+                    type="number"
+                    value={form[key]}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                    className="rounded-md border px-3 py-2"
+                    placeholder="—"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-6">
+            {error && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+            )}
+
+            {busy && (
+              <div className="rounded-xl border p-8 text-center">
+                <div className="animate-bounce text-4xl">🏋️</div>
+                <p className="mt-3 text-lg font-medium">COACH IS LOOKING…</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Running the {mode === 'agentic' ? 'agentic' : 'guided'} pipeline.
+                  <span className="hidden lg:inline"> Watch the live trace on the right →</span>
+                </p>
+                <div className="mt-4 lg:hidden">
+                  <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="truncate">
+                      {steps[lastDoneIndex]?.icon} {steps[lastDoneIndex]?.label} · {steps[lastDoneIndex]?.sub}
+                      <span className="ml-1 animate-pulse">●</span>
+                    </span>
+                    <span className="shrink-0 pl-2">{totalTokens > 0 ? `${totalTokens} tok` : ''}</span>
+                  </div>
+                  <div className="h-1 w-full overflow-hidden rounded bg-muted">
+                    <div className="h-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {result && status === 'done' && (
+              <div className={`rounded-xl border-4 p-6 text-center ${verdictTheme(result).border} ${verdictTheme(result).bg}`}>
+                <div className="mb-2 flex items-center justify-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                  {result.persona && <span>Coach: {result.persona}</span>}
+                  <span className="rounded-full border px-2 py-0.5 normal-case">
+                    {result.mode === 'agentic' ? '🤖 Agentic' : '🎛️ Guided'}
+                  </span>
+                </div>
+                <div
+                  className={`text-5xl font-extrabold ${verdictTheme(result).text}`}
+                  style={verdictTheme(result).flash ? { animation: 'gainsflash 0.5s steps(1) infinite' } : undefined}
+                >
+                  {result.headline}
+                </div>
+                <div className="mt-4 flex justify-center">
+                  {result.gif_url ? (
+                    <img src={result.gif_url} alt={result.headline} className="max-h-72 rounded-lg" />
+                  ) : (
+                    <div className="text-7xl">{verdictTheme(result).emoji}</div>
+                  )}
+                </div>
+                <p className="mt-4 text-lg font-medium">{result.reason}</p>
+                <p className="mt-1 text-sm text-muted-foreground">🔊 “{result.spoken_line}”</p>
+                <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
+                  replay sound
+                </button>
+              </div>
+            )}
+
+            {result && status === 'done' && result.legend && (
+              <div className="rounded-xl border p-4">
+                <div className="mb-3 text-sm font-medium">
+                  🏆 You vs {result.legend.name}
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    {result.mode === 'agentic'
+                      ? "· coach's pick"
+                      : result.legend.matched
+                        ? '· your closest match'
+                        : '· random rival'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-4 sm:flex-row">
+                  {result.legend.image_url && (
+                    <img
+                      src={result.legend.image_url}
+                      alt={result.legend.name}
+                      className="h-40 w-40 shrink-0 rounded-lg object-cover"
+                    />
+                  )}
+                  <div className="flex-1 space-y-3">
+                    <p className="text-sm">{result.legend.quip}</p>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="font-medium text-muted-foreground">Metric</div>
+                      <div className="font-medium">You</div>
+                      <div className="font-medium">{result.legend.name}</div>
+
+                      <div className="text-muted-foreground">Weight (kg)</div>
+                      <div>{form.weight_kg || '—'}</div>
+                      <div>{result.legend.weight_kg ?? '—'}</div>
+
+                      <div className="text-muted-foreground">Body fat (%)</div>
+                      <div>{form.body_fat_pct || '—'}</div>
+                      <div>{result.legend.body_fat_pct ?? '—'}</div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{result.legend.fun_fact}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Wizard navigation */}
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setStep((s) => Math.max(0, s - 1))}
+          disabled={step === 0 || busy}
+          className="rounded-md border px-4 py-2 text-sm disabled:opacity-40"
+        >
+          ← Back
+        </button>
+
+        {step < 2 && (
+          <button
+            type="button"
+            onClick={() => setStep((s) => s + 1)}
+            className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
+          >
+            Next: {STEP_LABELS[step + 1]} →
+          </button>
+        )}
+        {step === 2 && (
+          <button
+            type="button"
+            onClick={() => {
+              start();
+              setStep(3);
+            }}
+            disabled={busy}
+            className="rounded-md bg-primary px-6 py-2 text-base font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {busy ? 'COACH IS LOOKING…' : '💪 CHECK MY GAINS'}
+          </button>
+        )}
+        {step === 3 && (
+          <button
+            type="button"
+            onClick={() => {
+              setResult(null);
+              setError(null);
+              setEvents([]);
+              setStatus('idle');
+              setCheckId(null);
+              setStep(0);
+            }}
+            disabled={busy}
+            className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            ↻ Start over
+          </button>
+        )}
+      </div>
     </div>
   );
 }
