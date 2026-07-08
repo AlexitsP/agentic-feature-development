@@ -146,6 +146,20 @@ def finalize_gains(check_id: str, status: str, result: dict | None = None, error
 
 
 @activity.defn
+def record_plan_event(
+    plan_id: str, seq: int, stage: str, label: str, detail: Any = None, tokens: int | None = None
+) -> None:
+    """Append a trace event for the plan panel (frontend stepper)."""
+    with httpx.Client(timeout=15.0) as client:
+        resp = client.post(
+            f"{_rest_base()}/gains_plan_events",
+            headers={**_write_headers(), "Prefer": "return=minimal"},
+            json={"plan_id": plan_id, "seq": seq, "stage": stage, "label": label, "detail": detail, "tokens": tokens},
+        )
+        resp.raise_for_status()
+
+
+@activity.defn
 def finalize_plan(plan_id: str, status: str, result: dict | None = None, error: str | None = None) -> None:
     with httpx.Client(timeout=15.0) as client:
         resp = client.patch(
