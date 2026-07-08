@@ -82,9 +82,49 @@ apply to a given product, delete it explicitly — don't silently ignore it.
 
 ---
 
+## Phase 0 — Scaffold a fresh stack (naked repo only)
+
+**Skip this if you started from an existing stack scaffold.** It's for building the stack from an
+empty repo with nothing but this kit. Create the skeleton below — the agent generates the code;
+this is the **spec + the security defaults**, not a code dump. Bake the security defaults in from
+step one; do not retrofit them.
+
+**Repo layout to create**
+- `docker-compose.yml` — services: `temporal` (`temporalio/auto-setup`), `temporal-db`
+  (`postgres`), `temporal-ui`, `temporal-worker` (build `./temporal`), `frontend` (build
+  `./frontend`). **Supabase runs via its CLI, not compose.** Pass secrets to the **worker** env only.
+- `Makefile` — `up`/`down`/`reset`/`logs`/`supabase-status` wrappers; `up` runs `supabase start`
+  then `docker compose up`, and injects the live Supabase keys into the env (a
+  `scripts/supabase-env.sh`). Add a `USE_DEV=1` path with a `docker-compose.dev.yml` for
+  live-reload mounts.
+- `.env.example` (+ gitignored `.env`) — Supabase URLs (**worker → `host.docker.internal`**,
+  **browser → `localhost`**), Temporal address/namespace/queue, the LLM host config, and any
+  third-party keys. Document that real keys are injected by `make up`.
+- `supabase/` — `config.toml` (API/Studio/db ports; **on Windows remap out of the reserved
+  range** and set `[analytics] enabled=false`, see §4), `migrations/*.sql` (timestamped),
+  `seed.sql`.
+- `temporal/` (Python) — `pyproject.toml` (`temporalio`, the provider SDK **pinned**, `httpx`,
+  `pydantic`; dev extras `pytest`+`pytest-asyncio`; `asyncio_mode=auto`), `Dockerfile`,
+  `src/config.py` (Settings from env), `src/agents/model_client.py` (§2), the generic
+  `src/activities/insights.py::model_chat` (§2), `src/runs/poller.py` (atomic-claim loop),
+  `src/worker.py` (registers workflows + activities + runs the poller), and `tests/`.
+- `frontend/` (Vite + React + TanStack Router) — a `supabase-js` client wired to the **anon key**,
+  a route shell, `package.json` with `lint`+`build`, eslint config.
+- `.github/workflows/pr-validation.yml` — frontend `lint`+`build` and the temporal `pytest` suite,
+  **failing if no tests exist** (§5, [ADR-0003 pattern]).
+
+**Security defaults, baked in from step one:** browser uses the **anon key only**; service-role +
+provider keys are **server-side (worker) only**; **RLS enabled on every table with explicit
+grants**; secrets live in the gitignored `.env`/env, never committed.
+
+**Verify Phase 0 before any feature:** `make up` brings the stack up; a trivial insert → poll
+round-trips a row through a stub workflow. Only then start §3.
+
+---
+
 ## 1. Stand up the base stack (once per machine)
 
-The base is the shared template (Supabase CLI + Temporal + Vite/React). Getting it running:
+After Phase 0 (or if you started from an existing scaffold), get it running:
 
 ```bash
 cp .env.example .env
@@ -342,6 +382,11 @@ landmines, so front-load those.
 **A doc in `docs/` binds nothing on its own** — a fresh agent only auto-loads the repo's *root*
 agent file. Activation (making an agent obey this playbook) is the **consumer repo's job**. Make
 it trivial and consistent:
+
+> **Ready-to-copy:** the packaged version of everything below lives in [`kit/`](../kit/) —
+> `kit/README.md` (manifest + bootstrap/session prompts) and `kit/CLAUDE.template.md` (the base to
+> drop at the new repo's root). For a **brand-new empty repo**, run **Phase 0** first to scaffold
+> the stack, then follow these steps.
 
 1. **Copy `docs/PLAYBOOK.md`** into the new repo's `docs/`.
 2. **Make the block below the repo's canonical root agent file.** For a Claude team, name it
