@@ -5,7 +5,12 @@
 -- each get their own auth.uid(), so the app still works without a full sign-up flow
 -- while giving real per-user isolation (closes SEC-1's blanket-anon read/write).
 
-alter table program_evaluations add column if not exists user_id uuid default auth.uid();
+-- program_evaluations already has a (nullable, defaultless) user_id from its create
+-- migration, so ADD COLUMN IF NOT EXISTS would skip and leave no default. Set the
+-- default explicitly so authenticated inserts auto-capture the caller (and the
+-- with-check below passes without the client sending user_id).
+alter table program_evaluations add column if not exists user_id uuid;
+alter table program_evaluations alter column user_id set default auth.uid();
 
 drop policy if exists program_evaluations_anon_select on program_evaluations;
 drop policy if exists program_evaluations_anon_insert on program_evaluations;
