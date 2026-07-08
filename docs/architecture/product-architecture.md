@@ -1,6 +1,6 @@
 # Product Architecture
 
-**"Plan my studies"** — a Swiss higher-education advisor. The repo is a **kernel + feature
+**AlpacAI** — a Swiss AI hub for learning. The repo is a **kernel + feature
 plug-in platform**: a small shared kernel provides the run lifecycle, model access, live
 tracing, confidence scoring, source grounding, and auth; each user-facing capability is a
 self-contained **feature** that registers itself. For *why* each choice was made see the
