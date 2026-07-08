@@ -143,3 +143,20 @@ def finalize_gains(check_id: str, status: str, result: dict | None = None, error
             },
         )
         resp.raise_for_status()
+
+
+@activity.defn
+def finalize_plan(plan_id: str, status: str, result: dict | None = None, error: str | None = None) -> None:
+    with httpx.Client(timeout=15.0) as client:
+        resp = client.patch(
+            f"{_rest_base()}/gains_plans",
+            params={"id": f"eq.{plan_id}"},
+            headers={**_write_headers(), "Prefer": "return=minimal"},
+            json={
+                "status": status,
+                "result": result,
+                "error": error,
+                "updated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            },
+        )
+        resp.raise_for_status()
