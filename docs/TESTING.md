@@ -1,6 +1,6 @@
 # Testing Manifesto
 
-How we test **AlpacAI**. The binding decision is
+How we test **SLH AI Hub**. The binding decision is
 [ADR-0003](./adrs/0003-testing-strategy.md); this document is the practical manifesto.
 Per-feature testing rules live in each library's `MANIFESTO.md`.
 

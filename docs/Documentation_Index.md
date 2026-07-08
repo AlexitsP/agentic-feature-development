@@ -1,6 +1,6 @@
 # Documentation Index
 
-Welcome to the **AlpacAI** documentation. This index helps you locate the
+Welcome to the **SLH AI Hub** documentation. This index helps you locate the
 architecture, decisions, tech stack, testing manifesto, and per-feature manifestos.
 (Structure mirrors the `evento-process-ui` conventions, sized for this smaller repo.)
 

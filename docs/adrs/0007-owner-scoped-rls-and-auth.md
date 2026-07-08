@@ -6,7 +6,7 @@
 **Technical Story:** SEC-1 (High) — open RLS + no app auth; the gate for leaving local scope
 
 > **Implemented 2026-07-08.** Between proposal and acceptance the app was repurposed to the Swiss
-> higher-ed platform (later named **AlpacAI**) and the gains tables were removed (PR #36), so the concrete tables are now
+> higher-ed platform (later named **SLH AI Hub**) and the gains tables were removed (PR #36), so the concrete tables are now
 > `program_evaluations` + `program_evaluation_events`, not the `gains_*` tables the sketch below
 > references. The **design is unchanged** — `user_id uuid default auth.uid()`, owner-scoped
 > `authenticated` policies, blanket-`anon` dropped, worker service-role writes untouched — applied

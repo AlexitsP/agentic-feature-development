@@ -1,7 +1,7 @@
 # Onboarding
 
-Welcome to **AlpacAI** — a Swiss AI hub for learning, built as a **kernel +
-feature-plugin platform**. This page gets you from a fresh clone to a running app and your
+Welcome to **SLH AI Hub** — Swiss Learning Hub's platform for agentic learning apps, built as a
+**kernel + feature-plugin platform**. This page gets you from a fresh clone to a running app and your
 first change. For *why* things are shaped this way read the [ADRs](docs/adrs/); for *how the
 system fits together* read the [architecture docs](docs/architecture/product-architecture.md);
 for the full map read the [Documentation Index](docs/Documentation_Index.md).
