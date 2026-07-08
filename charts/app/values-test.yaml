@@ -60,22 +60,3 @@ temporalWorker:
     supabaseServiceRoleKey:
       secretName: "temporal-worker-secrets-<TEST_NAMESPACE>"
       key: "SUPABASE_SERVICE_ROLE_KEY"
-
-opsApi:
-  replicaCount: 1
-  image:
-    # Keep test deployments on immutable CI-produced tags.
-    # Replace <git-sha> during deployment automation.
-    tag: "test-<git-sha>"
-    # Digest is set at deploy time to pin the exact promoted image.
-    digest: ""
-    pullPolicy: IfNotPresent
-  temporal:
-    address: "temporal-frontend.temporal.svc.cluster.local:7233"
-    namespace: "<TEST_NAMESPACE>"
-  supabase:
-    url: "https://supabase.<TEST_DOMAIN>"
-  secrets:
-    supabaseServiceRoleKey:
-      secretName: "temporal-worker-secrets-<TEST_NAMESPACE>"
-      key: "SUPABASE_SERVICE_ROLE_KEY"

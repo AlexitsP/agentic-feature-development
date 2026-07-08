@@ -81,21 +81,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Ops-api fully-qualified name.
-*/}}
-{{- define "app.opsApi.fullname" -}}
-{{- printf "%s-ops-api" (include "app.fullname" .) | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-Ops-api selector labels.
-*/}}
-{{- define "app.opsApi.selectorLabels" -}}
-app.kubernetes.io/name: {{ printf "%s-ops-api" (include "app.name" .) | trunc 63 | trimSuffix "-" }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
 Return the fully-qualified image reference for a component.
   Usage: {{ include "app.image" (dict "image" .Values.frontend.image "global" .Values.imageRegistry) }}
 When image.digest is set the reference uses repo@sha256:… (digest pins are immutable).
