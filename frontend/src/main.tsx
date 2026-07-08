@@ -3,12 +3,8 @@ import ReactDOM from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { initializeRegistry } from '@/registry';
 import { routeTree } from './routeTree.gen';
 import '@/styles/globals.css';
-
-// Initialize the component registry
-initializeRegistry();
 
 // Create query client
 const queryClient = new QueryClient({
