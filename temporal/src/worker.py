@@ -7,7 +7,7 @@ from temporalio.worker import Worker
 
 from .config import settings
 from .logging_config import configure_logging
-from .features import FEATURES
+from .features.registry import FEATURES
 from .kernel.registry import build_activities, build_claims, build_workflows
 from .runs.poller import poll_loop
 
