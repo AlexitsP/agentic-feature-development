@@ -25,14 +25,12 @@ export const FEATURES: FeatureDef[] = [
     enabled: true,
   },
   {
-    // Disabled stub: registered, but toggled off. Flipping `enabled` is the only edit
-    // needed to surface it — nothing else in the app changes.
-    key: 'how-to-study',
-    title: 'How to Study',
-    description: 'Study-skills coach — coming soon.',
-    emoji: '📚',
-    path: '/how-to-study',
-    enabled: false,
+    key: 'plan',
+    title: 'Study Planner',
+    description: 'A coaching panel drafts a study plan — including how to study — for your goal.',
+    emoji: '🗺️',
+    path: '/plan',
+    enabled: true,
   },
 ];
 
