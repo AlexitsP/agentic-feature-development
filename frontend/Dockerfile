@@ -2,7 +2,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package.json package-lock.json* .npmrc* ./
-RUN npm install --silent --no-progress || npm install --silent --no-progress
+RUN npm ci
 
 COPY . .
 
