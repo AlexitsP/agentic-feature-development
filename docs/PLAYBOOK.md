@@ -309,6 +309,19 @@ also introduces concerns the single-feature recipe doesn't cover:
 10. **Standardize observability:** one trace schema across all features means one stepper
     component and one dashboard, not N.
 
+**Parallel development (a team + their agents, one repo)**
+11. **One feature = one vertical slice** (the §3 files) on its own branch; small, single-purpose
+    PRs; rebase on `main` before merge so migration-order/shared-file conflicts surface early.
+12. **Shared chokepoints** — the worker's registration lists, the poller loop, the frontend route
+    registry — are edited by every feature. Treat edits as **additive**: on conflict, keep BOTH
+    sides' registrations/claims rather than picking one.
+13. **Namespace per feature** (`foo_runs`, `FooWorkflow`, `/foo`) so parallel features don't
+    collide on table/workflow/queue/route names; never renumber or edit a merged migration.
+14. **One committed root agent file is the unified base** (see §9). Because it's committed, every
+    teammate's agent loads the identical governance — standardization is by construction, and the
+    only failure mode is someone weakening the file (guard it with review/CODEOWNERS if drift is a
+    concern).
+
 Everything else (Realtime subscription shape, the trace stepper, the finalize-on-error pattern,
 the atomic claim) is directly copy-pasteable across features and products.
 
@@ -331,19 +344,23 @@ agent file. Activation (making an agent obey this playbook) is the **consumer re
 it trivial and consistent:
 
 1. **Copy `docs/PLAYBOOK.md`** into the new repo's `docs/`.
-2. **Add the block below to the repo's root `AGENTS.md`** (the file agents auto-load; for Claude
-   Code you may name it `CLAUDE.md` — keep one canonical file). This is what turns the playbook
-   from reference into governance.
-3. **Fill the blanks** (`<PROJECT>`, ports/paths) and delete any guardrail that genuinely doesn't
-   apply. Keep the substance in the playbook — the root file stays a thin, binding pointer so the
-   rules live and version in one place.
+2. **Make the block below the repo's canonical root agent file.** For a Claude team, name it
+   **`CLAUDE.md`** (Claude Code auto-loads it) and leave a one-line `AGENTS.md` pointing to it for
+   any non-Claude tool — **one** full file, so there's a single source of truth that can't drift.
+   This is what turns the playbook from reference into governance.
+3. **Fill the repo-facts block once** (LLM host, Supabase specifics, runtime, merge strategy, RLS
+   posture, deployment) and the `<PROJECT>` blank, and delete any guardrail that genuinely doesn't
+   apply. Filling the facts once is what stops the agent guessing and stops each dev re-prompting.
+   Keep the deep substance in the playbook — the root file stays a thin, binding pointer.
 
 ```markdown
-# <PROJECT> — Agent Contract
+# CLAUDE.md — agent source of truth for <PROJECT>
+
+This committed file is the unified base every agent in this repo loads.
 
 **Governance:** `docs/PLAYBOOK.md` is BINDING, especially its "Guardrails — MUST / MUST-NOT"
 section. Load the relevant part before acting — don't ingest the whole doc every turn:
-- Adding/changing a feature      → read PLAYBOOK §3 (The Feature Recipe).
+- Adding/changing a feature            → read PLAYBOOK §3 (The Feature Recipe).
 - Debugging env/provider/orchestration → read PLAYBOOK §4 (The Landmine Table).
 - Change touching >1 component, a service, or a security/data/deploy boundary → check
   `docs/adrs/` and add an ADR.
@@ -357,13 +374,29 @@ section. Load the relevant part before acting — don't ingest the whole doc eve
 - Verify end-to-end (insert → poll `done`), not on CI-green.
 - Confirm before provisioning cloud resources or other costly/outward-facing actions.
 
+**Repo facts (FILL ONCE so the agent doesn't guess):**
+- LLM host / model / auth: <e.g. Azure OpenAI gpt-5-mini, Entra+key fallback, SDK pin>.
+- Supabase: <local CLI | cloud>; ports <default | remapped>; keys from <where>.
+- Container runtime: <Docker Desktop | Rancher `default`>; bind-mount caveats.
+- Merge strategy: <squash | merge | rebase> (drives the branch-reuse rule).
+- RLS posture for real users: <owner-scoped | experiment anon default>.
+- Deployment: <allowed target | local-only — confirm before provisioning>.
+
+**Working in parallel (a team + their agents, one repo):**
+- One feature = one vertical slice on your own branch; small, single-purpose PRs; rebase on
+  `main` before merge.
+- Shared chokepoints (worker registration lists, the poller, the route registry) → additive
+  edits; on conflict keep BOTH sides' registrations.
+- Namespace tables/workflows/queues/routes by feature; never renumber/edit a merged migration.
+
 **Stack:** Supabase + Temporal + Vite/React + a hosted LLM. Local run + gotchas: ONBOARDING and
 PLAYBOOK §1/§4.
 ```
 
-That keeps activation a **paste + two blanks**, not a rewrite — and the responsibility boundary
-stays exactly where it belongs: the playbook carries the knowledge and guardrails; the consumer
-repo declares them binding.
+That keeps activation a **paste + fill-the-facts-once**, not a rewrite. The responsibility
+boundary stays where it belongs: the playbook carries the knowledge and guardrails; the consumer
+repo declares them binding in one committed root file that every teammate's agent loads
+identically.
 
 ---
 
