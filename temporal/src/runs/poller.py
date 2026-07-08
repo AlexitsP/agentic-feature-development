@@ -1,7 +1,9 @@
 """Bridge from a Supabase pending row to a Temporal workflow.
 
 The frontend inserts a `pending` run row; this poller (running inside the worker
-process) atomically claims pending rows and starts the matching workflow.
+process) atomically claims pending rows and starts the matching workflow. The set of
+`(table -> workflow)` claims is data-driven from the enabled feature manifests
+(ADR-0008), so adding a feature adds a claim without editing this loop.
 """
 from __future__ import annotations
 
@@ -12,15 +14,14 @@ import httpx
 from temporalio.client import Client
 
 from ..config import settings
-from ..workflows.gains_check import GainsCheckWorkflow
-from ..workflows.gains_plan import GainsPlanWorkflow
+from ..kernel.registry import ClaimSpec
 
 logger = logging.getLogger(__name__)
 
 POLL_INTERVAL = 2.0
 
 
-def _claim(table: str, select: str) -> list[dict]:
+def _claim(table: str, select: str = "id,input") -> list[dict]:
     """Atomically flip pending -> running for a table and return claimed rows."""
     key = settings.supabase_service_role_key
     base = settings.supabase_url.rstrip("/") + "/rest/v1"
@@ -48,27 +49,19 @@ def _claim(table: str, select: str) -> list[dict]:
         return resp.json()
 
 
-async def poll_loop(client: Client, task_queue: str) -> None:
-    logger.info("run poller started (interval=%ss)", POLL_INTERVAL)
+async def poll_loop(client: Client, task_queue: str, claims: list[ClaimSpec]) -> None:
+    logger.info("run poller started (interval=%ss, claims=%d)", POLL_INTERVAL, len(claims))
     while True:
         try:
-            for check in await asyncio.to_thread(_claim, "gains_checks", "id,input"):
-                await client.start_workflow(
-                    GainsCheckWorkflow.run,
-                    args=[check["id"], check.get("input") or {}],
-                    id=f"gains-{check['id']}",
-                    task_queue=task_queue,
-                )
-                logger.info("started gains workflow check_id=%s", check["id"])
-
-            for plan in await asyncio.to_thread(_claim, "gains_plans", "id,input"):
-                await client.start_workflow(
-                    GainsPlanWorkflow.run,
-                    args=[plan["id"], plan.get("input") or {}],
-                    id=f"gains-plan-{plan['id']}",
-                    task_queue=task_queue,
-                )
-                logger.info("started gains plan workflow plan_id=%s", plan["id"])
+            for spec in claims:
+                for row in await asyncio.to_thread(_claim, spec.table):
+                    await client.start_workflow(
+                        spec.workflow.run,
+                        args=[row["id"], row.get("input") or {}],
+                        id=f"{spec.workflow_id_prefix}{row['id']}",
+                        task_queue=task_queue,
+                    )
+                    logger.info("started workflow table=%s id=%s", spec.table, row["id"])
         except Exception:
             logger.exception("poller iteration failed")
         await asyncio.sleep(POLL_INTERVAL)

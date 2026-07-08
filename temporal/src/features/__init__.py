@@ -5,3 +5,6 @@ Each subpackage is a self-contained feature declaring a `FeatureManifest`
 other. The worker/poller/frontend build their registration, claim, and route
 lists by iterating the enabled feature manifests.
 """
+from .registry import FEATURES
+
+__all__ = ["FEATURES"]
