@@ -61,7 +61,8 @@ def test_caps_weekly_steps_and_how_to_study():
 
 
 def test_thin_input_lowers_confidence():
-    r = build_plan_result(SYNTH, PANEL, "Encouraging Mentor", {"interests": "unsure"})
+    # Empty profile -> input_completeness 0 -> speculative even with good grounding.
+    r = build_plan_result(SYNTH, PANEL, "Encouraging Mentor", {})
     assert r["confidence"]["tier"] == "speculative"
 
 
