@@ -1,5 +1,10 @@
 # Product Architecture
 
+> **Note (2026-07-08):** the repo was trimmed to **Gains-only** — see
+> [ADR-0006](../adrs/0006-trim-to-gains-only-minimal-repo.md). The **Entity Insights** sections
+> below are kept as historical reference; the live app is **Gains Check** (check + multi-agent
+> plan). The lifecycle, substrate, and patterns described here still apply.
+
 The technical shape of the application: how a click in the browser becomes a durable,
 tool-using model run, and how the result streams back. For *why* these choices were made,
 see the [ADRs](../adrs/); for onboarding, see [`ONBOARDING.md`](../../ONBOARDING.md).

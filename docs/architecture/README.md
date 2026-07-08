@@ -17,9 +17,10 @@ specs when you need the depth on a particular decision.
 
 This repository ships **a product plus the factory that builds it**:
 
-1. **The product** — a JSON-driven Supabase + Temporal + Vite/React app with two agentic
-   features (Entity Insights Assistant and the Gains Check demo). See
-   [`product-architecture.md`](./product-architecture.md) for the real, current shape.
+1. **The product** — a Supabase + Temporal + Vite/React app: the **Gains Check** demo (check +
+   multi-agent plan). See [`product-architecture.md`](./product-architecture.md) for the shape.
+   (The repo was trimmed to Gains-only — [ADR-0006](../adrs/0006-trim-to-gains-only-minimal-repo.md);
+   Entity Insights references in these docs are historical.)
 2. **The Software Factory** — GitHub Actions + role-based AI agents (see
    [`.github/agents/`](../../.github/agents/)) that triage, design, build, review,
    and ship the product. Configured via [`.github/factory.yml`](../../.github/factory.yml).

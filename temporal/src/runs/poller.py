@@ -1,7 +1,7 @@
-"""Bridge from a Supabase `insight_runs` row to a Temporal workflow.
+"""Bridge from a Supabase pending row to a Temporal workflow.
 
 The frontend inserts a `pending` run row; this poller (running inside the worker
-process) atomically claims pending rows and starts EntityInsightWorkflow for each.
+process) atomically claims pending rows and starts the matching workflow.
 """
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ import httpx
 from temporalio.client import Client
 
 from ..config import settings
-from ..workflows.entity_insight import EntityInsightWorkflow
 from ..workflows.gains_check import GainsCheckWorkflow
 from ..workflows.gains_plan import GainsPlanWorkflow
 
@@ -46,15 +45,6 @@ async def poll_loop(client: Client, task_queue: str) -> None:
     logger.info("run poller started (interval=%ss)", POLL_INTERVAL)
     while True:
         try:
-            for run in await asyncio.to_thread(_claim, "insight_runs", "id,entity_id"):
-                await client.start_workflow(
-                    EntityInsightWorkflow.run,
-                    args=[run["id"], run["entity_id"]],
-                    id=f"insight-{run['id']}",
-                    task_queue=task_queue,
-                )
-                logger.info("started insight workflow run_id=%s", run["id"])
-
             for check in await asyncio.to_thread(_claim, "gains_checks", "id,input"):
                 await client.start_workflow(
                     GainsCheckWorkflow.run,

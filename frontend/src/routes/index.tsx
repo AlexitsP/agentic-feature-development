@@ -1,16 +1,10 @@
 /**
- * Index Route - Dashboard
+ * Index — redirect to the app (Gains Check).
  */
-
-import { createFileRoute } from '@tanstack/react-router';
-import { UIEngine } from '@/engine';
-import dashboardPage from '@/pages/dashboard.json';
-import type { PageDefinition } from '@/engine/types';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/')({
-  component: DashboardPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/gains' });
+  },
 });
-
-function DashboardPage() {
-  return <UIEngine page={dashboardPage as PageDefinition} />;
-}
