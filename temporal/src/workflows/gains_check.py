@@ -19,6 +19,9 @@ with workflow.unsafe.imports_passed_through():
 MAX_ROUNDS = 5
 MAX_ROUNDS_AGENTIC = 5
 _ACTIVITY_TIMEOUT = timedelta(seconds=30)
+# User-facing failure text stored in the anon-readable `error` column. Deliberately
+# generic — the real exception is logged server-side, never surfaced to clients (SEC-5).
+_GENERIC_ERROR = "Evaluation failed — please try again."
 _GOALS = ("recomp", "weight_loss", "build_muscle", "get_lean")
 
 
@@ -85,9 +88,12 @@ class GainsCheckWorkflow:
                 return await self._execute_agentic(check_id, user_input)
             return await self._execute(check_id, user_input)
         except Exception as exc:
+            # Log the full exception server-side (replay-safe); persist only a generic,
+            # non-sensitive message to the anon-readable `error` column (SEC-5).
+            workflow.logger.exception("GainsCheckWorkflow failed for check_id=%s", check_id)
             await workflow.execute_activity(
                 "finalize_gains",
-                args=[check_id, "error", None, f"workflow error: {exc}"[:500]],
+                args=[check_id, "error", None, _GENERIC_ERROR],
                 start_to_close_timeout=_ACTIVITY_TIMEOUT,
             )
             return {"check_id": check_id, "error": str(exc)}

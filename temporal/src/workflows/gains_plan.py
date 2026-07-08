@@ -29,6 +29,9 @@ with workflow.unsafe.imports_passed_through():
 
 _ACTIVITY_TIMEOUT = timedelta(seconds=30)
 _MODEL_TIMEOUT = timedelta(seconds=90)
+# User-facing failure text stored in the anon-readable `error` column. Deliberately
+# generic — the real exception is logged server-side, never surfaced to clients (SEC-5).
+_GENERIC_ERROR = "Plan generation failed — please try again."
 
 GOAL_LABELS = {
     "recomp": "Body recomposition — lose fat while preserving/building muscle",
@@ -92,9 +95,12 @@ class GainsPlanWorkflow:
         try:
             return await self._execute(plan_id, user_input)
         except Exception as exc:
+            # Log the full exception server-side (replay-safe); persist only a generic,
+            # non-sensitive message to the anon-readable `error` column (SEC-5).
+            workflow.logger.exception("GainsPlanWorkflow failed for plan_id=%s", plan_id)
             await workflow.execute_activity(
                 "finalize_plan",
-                args=[plan_id, "error", None, f"workflow error: {exc}"[:500]],
+                args=[plan_id, "error", None, _GENERIC_ERROR],
                 start_to_close_timeout=_ACTIVITY_TIMEOUT,
             )
             return {"plan_id": plan_id, "error": str(exc)}
