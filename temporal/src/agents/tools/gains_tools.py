@@ -124,12 +124,11 @@ TOOLS: list[dict[str, Any]] = [
                         "enum": ["not_tracking", "slacking"],
                         "description": "Only when passed is false: 'not_tracking' if calories or protein are missing/zero (they aren't even logging); 'slacking' if they ARE tracking real numbers but the numbers are weak.",
                     },
-                    "headline": {"type": "string", "description": "Big on-screen text, e.g. 'YEAH BUDDY!', 'YOU SHOULD', or 'DO BETTER'"},
-                    "spoken_line": {"type": "string", "description": "What the voice shouts — a Ronnie Coleman / Arnold catchphrase on a pass, or a scolding on a fail"},
-                    "sound": {"type": "string", "enum": ["hype", "shame"]},
-                    "reason": {"type": "string", "description": "One-line why, in your coach voice"},
+                    "assessment": {"type": "string", "description": "A genuine 2-4 sentence evaluation of their tracked numbers: what's solid, what's lacking, and where they stand. Specific and useful — your coach voice is fine, but the substance must be real."},
+                    "suggested_goal": {"type": "string", "enum": ["recomp", "weight_loss", "build_muscle", "get_lean"], "description": "The single goal that best fits their numbers right now."},
+                    "suggestion_reason": {"type": "string", "description": "1-2 sentences: why that goal fits them, grounded in their numbers."},
                 },
-                "required": ["passed", "headline", "spoken_line", "sound", "reason"],
+                "required": ["passed", "assessment", "suggested_goal", "suggestion_reason"],
             },
         },
     },
@@ -175,53 +174,9 @@ def shame_query(fail_kind: str | None) -> str:
 VOICE_STYLES = ["excited", "shouting", "cheerful", "friendly", "angry", "hopeful", "sad"]
 
 
-# ── Agentic tool set ─────────────────────────────────────────────────────────
-# Unlike the guided TOOLS (a single forced submit_verdict), here the model gets a
-# REAL tool it chooses when/how to use, and submit_verdict is NOT forced — so the
-# model runs a genuine multi-step loop: reason -> search GIFs it picks -> decide.
-AGENTIC_TOOLS: list[dict[str, Any]] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_gif",
-            "description": (
-                "Search Giphy for a GIF and get a URL back. YOU choose the search terms. "
-                "Call it as many times as you like to find a GIF that fits your verdict."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "search terms, e.g. 'Ronnie Coleman yeah buddy' or 'sad dog'"}
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "submit_verdict",
-            "description": "Return your final verdict. Call exactly once, after you've searched for any GIFs you want.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "passed": {"type": "boolean", "description": "true if, in your judgment, they're tracking and doing it right"},
-                    "fail_kind": {
-                        "type": "string",
-                        "enum": ["not_tracking", "slacking"],
-                        "description": "Only when passed is false: 'not_tracking' if they aren't logging calories/protein; 'slacking' if they log but the numbers are weak.",
-                    },
-                    "headline": {"type": "string", "description": "Big on-screen text in your voice"},
-                    "spoken_line": {"type": "string", "description": "What the voice should shout/say"},
-                    "reason": {"type": "string", "description": "One-line why, in character"},
-                    "gif_url": {"type": "string", "description": "A URL you got back from search_gif that fits the verdict. Empty string if none suitable."},
-                    "voice_style": {"type": "string", "enum": VOICE_STYLES, "description": "How the line should be spoken"},
-                },
-                "required": ["passed", "headline", "spoken_line", "reason", "gif_url", "voice_style"],
-            },
-        },
-    },
-]
+# Agentic mode uses the same serious verdict tool; the difference is the prompt
+# (free reasoning, no fixed formula) and that the tool choice is not forced.
+AGENTIC_TOOLS: list[dict[str, Any]] = TOOLS
 
 
 # ── Gains Plan ────────────────────────────────────────────────────────────────
