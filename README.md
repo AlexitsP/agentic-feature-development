@@ -1,46 +1,54 @@
-# 💪 Gains Check
+# 🎓 Plan my studies
 
-A small, fully agentic demo app on **Supabase + Temporal + Vite/React + a hosted LLM**.
+A Swiss **higher-education advisor** on **Supabase + Temporal + Vite/React + a hosted LLM**,
+built as a **kernel + feature-plugin platform**: a small shared kernel (run lifecycle, model
+access, live tracing, confidence scoring, source grounding, auth) hosts self-contained features.
 
-Enter your tracked fitness numbers (or just describe them in plain words) and a coach agent judges
-whether you're doing it right — with a live pipeline trace, GIFs, and coach personas. Then pick a
-goal and a **panel of agents** (nutrition · training · recovery specialists → a head coach)
-drafts a research-based starter plan with resource links.
+Today it ships two features:
 
-The whole flow is a 6-step wizard at **`/gains`** (the app's only page): Engine → Coach → Your
-numbers → Result → Goal → Plan.
+- **Program Evaluator** (`/evaluate`) — describe your situation; an agent assesses fit and
+  suggests Swiss study options (field + institution type: University / UAS / PH), grounded in
+  official Swiss sources, with an honest **confidence badge**.
+- **Study Planner** (`/plan`) — a multi-agent **panel** (curriculum + study-skills coach →
+  head-advisor synthesis) drafts a study plan **including how to study**, with sources + confidence.
+
+> The stack began as a "Gains Check" fitness demo and was repurposed (ADR-0008); all gains code
+> is gone. See [`docs/Documentation_Index.md`](docs/Documentation_Index.md) for everything.
 
 ## Run it locally
 
 ```bash
-cp .env.example .env      # fill the Azure OpenAI + Giphy keys (see .env.example)
+cp .env.example .env      # fill the Azure OpenAI keys (see .env.example)
 make up                   # supabase start + Temporal + worker + frontend
 make supabase-status      # local Supabase URLs + keys
 ```
 
-Then open **http://localhost:3000** (redirects to `/gains`). Full setup, prerequisites, and the
-gotchas (Rancher context, Windows Supabase port remap) are in **[`ONBOARDING.md`](ONBOARDING.md)**.
-
-Lifecycle: `make down` · `make reset` · `make logs` · `make logs-temporal` / `make logs-frontend`.
+Open the app (the launcher lists the features), then pick a tool. Full setup, prerequisites, and
+the gotchas (Rancher context, Windows Supabase port remap, anon-auth for gated features) are in
+**[`ONBOARDING.md`](ONBOARDING.md)**. Lifecycle: `make down` · `make reset` · `make logs`.
 
 ## How it works
 
-The browser only ever talks to Supabase: it inserts a `pending` row; a worker-side poller claims
-it and starts a Temporal workflow; the workflow runs the model + tools in activities and streams
-the result + trace back via Supabase Realtime. See
-**[`docs/architecture/product-architecture.md`](docs/architecture/product-architecture.md)** for
-the shape, and **[`docs/adrs/`](docs/adrs/)** for the decisions.
+The browser only ever talks to Supabase: it inserts a `pending` row; a worker-side poller
+claims it and starts the feature's Temporal workflow; the workflow runs the model in activities,
+computes a confidence badge, and streams the result + trace back via Supabase Realtime. Worker,
+poller, and frontend are **registry-driven**, so adding/removing/toggling a feature touches only
+that feature's package + one registry line. See
+**[`docs/architecture/product-architecture.md`](docs/architecture/product-architecture.md)** and
+the **[ADRs](docs/adrs/)**.
 
 ## Layout
 
-- `frontend/` — Vite + React + TanStack Router; the app is `src/routes/gains.tsx`.
-- `temporal/` — Python worker: `workflows/` (`gains_check`, `gains_plan`), `activities/`
-  (`gains`, `model`), `agents/` (model client + tools), `runs/poller.py`; tests in `tests/`.
-- `supabase/` — `config.toml`, `migrations/` (the `gains_*` tables), `seed.sql`.
-- `docs/` — architecture, ADRs, the reuse **PLAYBOOK**, and the portable `kit/` for standing this
-  stack up in a new repo.
+- `frontend/` — Vite + React + TanStack Router. Launcher + nav render from `src/features/registry.ts`;
+  each feature is a route in `src/routes/` (lazy-loaded), with `src/data/` (supabase, auth) and
+  `src/components/` (e.g. `ConfidenceBadge`).
+- `temporal/` — Python worker. **`src/kernel/`** (registry, confidence, sources) + **`src/features/<name>/`**
+  (manifest, workflow, activities, tools) + `src/runs/poller.py`; tests in `tests/`.
+- `supabase/` — `config.toml`, `migrations/*.sql` (per-feature tables), `seed.sql`.
+- `docs/` — the [index](docs/Documentation_Index.md), architecture, ADRs, tech stack, testing
+  manifesto, and the reuse **PLAYBOOK**. Each library also carries a `README.md` + `MANIFESTO.md`.
 
 ## Reusing the stack elsewhere
 
-To bootstrap this stack in a fresh repo, use the portable kit — **[`kit/README.md`](kit/README.md)**
-and **[`docs/PLAYBOOK.md`](docs/PLAYBOOK.md)** — not a copy of this app.
+To bootstrap this stack in a fresh repo, use the portable **[`kit/`](kit/README.md)** +
+**[`docs/PLAYBOOK.md`](docs/PLAYBOOK.md)** — not a copy of this app.
