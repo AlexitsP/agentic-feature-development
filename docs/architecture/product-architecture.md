@@ -33,7 +33,7 @@ shape in [ADR-0008](../adrs/0008-education-platform-feature-plugin-architecture.
 
 ```mermaid
 flowchart LR
-    browser["Browser · Vite/React SPA · :3001"]
+    browser["Browser · Vite/React SPA · :3000"]
     subgraph supa["Supabase (CLI-managed, host · :55321)"]
       pg[("Postgres + PostgREST + Realtime + Auth (gotrue)")]
     end
