@@ -21,28 +21,50 @@ logger = logging.getLogger(__name__)
 POLL_INTERVAL = 2.0
 
 
+CLAIM_BATCH = 50
+
+
 def _claim(table: str, select: str = "id,input") -> list[dict]:
-    """Atomically flip pending -> running for a table and return claimed rows."""
+    """Atomically flip pending -> running for a table and return claimed rows.
+
+    SEC-2: bound the batch so an anon-key insert flood can't spawn unbounded
+    concurrent (paid) workflows. `limit`+`order` on a PATCH is rejected by PostgREST
+    (it mangles the order column), so we do it in two steps: pick the oldest N pending
+    ids with a GET (where order/limit work), then claim exactly those ids. The claim
+    PATCH still filters `status=eq.pending`, so a row another worker grabbed between
+    the two calls is simply not returned — claiming stays at-most-once.
+    """
     key = settings.supabase_service_role_key
     base = settings.supabase_url.rstrip("/") + "/rest/v1"
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
-        "Prefer": "return=representation",
     }
     with httpx.Client(timeout=15.0) as client:
-        resp = client.patch(
+        picked = client.get(
             f"{base}/{table}",
-            # SEC-2: bound rows claimed per iteration so an anon-key insert flood
-            # cannot spawn unbounded concurrent (paid) workflows. Oldest first.
             params={
                 "status": "eq.pending",
-                "select": select,
-                "limit": "50",
+                "select": "id",
+                "limit": str(CLAIM_BATCH),
                 "order": "created_at.asc",
             },
             headers=headers,
+        )
+        picked.raise_for_status()
+        ids = [row["id"] for row in picked.json()]
+        if not ids:
+            return []
+
+        resp = client.patch(
+            f"{base}/{table}",
+            params={
+                "id": f"in.({','.join(ids)})",
+                "status": "eq.pending",
+                "select": select,
+            },
+            headers={**headers, "Prefer": "return=representation"},
             json={"status": "running"},
         )
         resp.raise_for_status()
