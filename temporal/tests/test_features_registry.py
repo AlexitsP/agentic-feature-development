@@ -20,4 +20,4 @@ def test_model_chat_registered_once():
 
 
 def test_enabled_features():
-    assert [f.key for f in FEATURES if f.enabled] == ["program_evaluator"]
+    assert [f.key for f in FEATURES if f.enabled] == ["program_evaluator", "study_planner"]

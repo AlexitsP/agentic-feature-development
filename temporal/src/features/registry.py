@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from ..kernel.registry import FeatureManifest
 from .program_evaluator.manifest import MANIFEST as PROGRAM_EVALUATOR
+from .study_planner.manifest import MANIFEST as STUDY_PLANNER
 
 FEATURES: list[FeatureManifest] = [
     PROGRAM_EVALUATOR,
+    STUDY_PLANNER,
 ]

@@ -9,9 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PlanRouteImport } from './routes/plan'
 import { Route as EvaluateRouteImport } from './routes/evaluate'
 import { Route as IndexRouteImport } from './routes/index'
 
+const PlanRoute = PlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EvaluateRoute = EvaluateRouteImport.update({
   id: '/evaluate',
   path: '/evaluate',
@@ -26,31 +32,42 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/evaluate': typeof EvaluateRoute
+  '/plan': typeof PlanRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/evaluate': typeof EvaluateRoute
+  '/plan': typeof PlanRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/evaluate': typeof EvaluateRoute
+  '/plan': typeof PlanRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/evaluate'
+  fullPaths: '/' | '/evaluate' | '/plan'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/evaluate'
-  id: '__root__' | '/' | '/evaluate'
+  to: '/' | '/evaluate' | '/plan'
+  id: '__root__' | '/' | '/evaluate' | '/plan'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EvaluateRoute: typeof EvaluateRoute
+  PlanRoute: typeof PlanRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/plan': {
+      id: '/plan'
+      path: '/plan'
+      fullPath: '/plan'
+      preLoaderRoute: typeof PlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/evaluate': {
       id: '/evaluate'
       path: '/evaluate'
@@ -71,6 +88,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   EvaluateRoute: EvaluateRoute,
+  PlanRoute: PlanRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
