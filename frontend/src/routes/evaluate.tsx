@@ -8,7 +8,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/data/supabase';
-import { ensureSession } from '@/data/auth';
+import { ensureSessionIf } from '@/data/auth';
+import { featureRequiresAuth } from '@/features/registry';
 import { ConfidenceBadge } from '@/components/ConfidenceBadge';
 
 export const Route = createFileRoute('/evaluate')({
@@ -84,7 +85,7 @@ function ProgramEvaluator() {
     setError(null);
     setEvents([]);
     setStatus('pending');
-    await ensureSession(); // ADR-0007: authenticated (anon) session so the row is owner-scoped
+    await ensureSessionIf(featureRequiresAuth('evaluate')); // ADR-0011: gate only if this feature requires auth
     const input = { ...form, persona };
     const { data, error: insErr } = await supabase
       .from('program_evaluations')

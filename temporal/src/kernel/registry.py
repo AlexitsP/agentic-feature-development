@@ -27,6 +27,9 @@ class FeatureManifest:
     key: str
     title: str
     enabled: bool = True
+    # ADR-0011: whether the feature needs an authenticated session. MUST match the
+    # feature's DB RLS posture (owner-scoped ⟺ True; open-anon ⟺ False).
+    requires_auth: bool = False
     workflows: tuple[Any, ...] = ()
     activities: tuple[Any, ...] = ()
     claims: tuple[ClaimSpec, ...] = ()

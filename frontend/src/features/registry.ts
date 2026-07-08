@@ -14,6 +14,9 @@ export interface FeatureDef {
   emoji: string;
   path: LinkProps['to'];
   enabled: boolean;
+  // ADR-0011: whether the feature needs an auth session before use. MUST match the
+  // feature's DB RLS posture (owner-scoped ⟺ true; open-anon ⟺ false).
+  requiresAuth: boolean;
 }
 
 export const FEATURES: FeatureDef[] = [
@@ -24,6 +27,7 @@ export const FEATURES: FeatureDef[] = [
     emoji: '🎓',
     path: '/evaluate',
     enabled: true,
+    requiresAuth: false, // open-anon during the local experiment
   },
   {
     key: 'plan',
@@ -32,6 +36,7 @@ export const FEATURES: FeatureDef[] = [
     emoji: '🗺️',
     path: '/plan',
     enabled: true,
+    requiresAuth: true, // study_plans is owner-scoped (ADR-0007)
   },
 ];
 
@@ -43,3 +48,7 @@ const ENV_ALLOW = (import.meta.env.VITE_ENABLED_FEATURES as string | undefined)
 
 export const enabledFeatures = (): FeatureDef[] =>
   FEATURES.filter((f) => (ENV_ALLOW && ENV_ALLOW.length ? ENV_ALLOW.includes(f.key) : f.enabled));
+
+/** ADR-0011: does the feature with this key need an auth session before use? */
+export const featureRequiresAuth = (key: string): boolean =>
+  FEATURES.find((f) => f.key === key)?.requiresAuth ?? false;
