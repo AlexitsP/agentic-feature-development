@@ -79,7 +79,7 @@ const PERSONAS = [
   { key: 'wholesome', emoji: '🤗', label: 'Wholesome Coach', blurb: 'Kind & encouraging' },
 ] as const;
 
-const STEP_LABELS = ['Engine', 'Coach', 'Your numbers', 'Result', 'Plan'] as const;
+const STEP_LABELS = ['Engine', 'Coach', 'Your numbers', 'Result', 'Goal', 'Plan'] as const;
 
 const GOALS = [
   { key: 'recomp', emoji: '⚖️', label: 'Body recomposition', blurb: 'Lose fat, keep/gain muscle' },
@@ -158,6 +158,7 @@ function GainsCheck() {
   const [planResult, setPlanResult] = useState<GainsPlan | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
   const [planCheckId, setPlanCheckId] = useState<string | null>(null);
+  const [planEvents, setPlanEvents] = useState<TraceEvent[]>([]);
   const startingRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
 
@@ -243,12 +244,19 @@ function GainsCheck() {
       if (row.error) setPlanError(row.error);
       if (row.result) setPlanResult(row.result);
     };
+    const mergePlanEvent = (e: TraceEvent) =>
+      setPlanEvents((prev) => (prev.some((p) => p.seq === e.seq) ? prev : [...prev, e].sort((a, b) => a.seq - b.seq)));
     const channel = supabase
       .channel(`gains-plan-${planCheckId}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'gains_plans', filter: `id=eq.${planCheckId}` },
         (payload) => applyRow(payload.new as { status: Status; result: GainsPlan | null; error: string | null }),
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'gains_plan_events', filter: `plan_id=eq.${planCheckId}` },
+        (payload) => mergePlanEvent(payload.new as TraceEvent),
       )
       .subscribe();
     supabase
@@ -257,6 +265,12 @@ function GainsCheck() {
       .eq('id', planCheckId)
       .single()
       .then(({ data }) => data && applyRow(data as { status: Status; result: GainsPlan | null; error: string | null }));
+    supabase
+      .from('gains_plan_events')
+      .select('seq,stage,label,detail,tokens')
+      .eq('plan_id', planCheckId)
+      .order('seq')
+      .then(({ data }) => (data as TraceEvent[] | null)?.forEach(mergePlanEvent));
     return () => {
       supabase.removeChannel(channel);
     };
@@ -265,6 +279,7 @@ function GainsCheck() {
   const generatePlan = useCallback(async () => {
     setPlanResult(null);
     setPlanError(null);
+    setPlanEvents([]);
     setPlanStatus('pending');
     const numberInput =
       inputMode === 'freeform'
@@ -307,11 +322,23 @@ function GainsCheck() {
     setPlanError(null);
     setPlanStatus('idle');
     setPlanCheckId(null);
+    setPlanEvents([]);
     setStep(0);
   };
 
   const busy = status === 'pending' || status === 'running';
   const planBusy = planStatus === 'pending' || planStatus === 'running';
+
+  const planSteps = planEvents.map((e) => {
+    const d = e.detail ?? {};
+    if (e.stage === 'dispatched') return { icon: '⚙️', label: 'Temporal', sub: 'panel dispatched', tokens: null as number | null };
+    if (e.stage === 'agent') return { icon: '🧠', label: e.label.replace('Agent · ', ''), sub: 'specialist agent', tokens: e.tokens };
+    if (e.stage === 'synth') return { icon: '🧩', label: 'Head coach', sub: `synthesis · ${d.resources ?? 0} links`, tokens: e.tokens };
+    if (e.stage === 'finalized') return { icon: '💾', label: 'Supabase', sub: 'plan saved', tokens: null as number | null };
+    return { icon: '•', label: e.label, sub: e.stage, tokens: e.tokens };
+  });
+  const planTokens = planEvents.reduce((n, e) => n + (e.tokens ?? 0), 0);
+  const planLastIndex = planSteps.length - 1;
 
   const backendSteps = events.map((e) => {
     const d = e.detail ?? {};
@@ -445,8 +472,8 @@ function GainsCheck() {
         ))}
       </ol>
 
-      {/* Floating side trace navigator (desktop) — independent of the wizard step. */}
-      {showTrace && (
+      {/* Floating side trace navigator for the check (steps 0–3). */}
+      {showTrace && step <= 3 && (
         <nav
           aria-label="Request trace"
           className="group fixed right-3 top-1/2 z-40 hidden -translate-y-1/2 flex-col items-end gap-1.5 lg:flex"
@@ -476,6 +503,37 @@ function GainsCheck() {
           })}
           <div className="mt-0.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
             {totalTokens > 0 ? `${totalTokens} tokens` : ''}
+          </div>
+        </nav>
+      )}
+
+      {/* Floating side trace navigator for the plan panel (step 5) — agents + token usage. */}
+      {step === 5 && planSteps.length > 0 && (
+        <nav
+          aria-label="Plan trace"
+          className="group fixed right-3 top-1/2 z-40 hidden -translate-y-1/2 flex-col items-end gap-1.5 lg:flex"
+        >
+          <div className="mb-0.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            plan panel {planBusy && <span className="animate-pulse text-primary">●</span>}
+          </div>
+          {planSteps.map((s, i) => {
+            const active = planBusy && i === planLastIndex;
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <span
+                  className={`max-w-[16rem] truncate rounded bg-background/90 px-1.5 py-0.5 text-[11px] text-foreground shadow-sm backdrop-blur transition-all duration-200 ${
+                    active ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  {s.icon} {s.label} · {s.sub}
+                  {s.tokens != null && <span className="ml-1 text-muted-foreground">({s.tokens} tok)</span>}
+                </span>
+                <span className={`h-1 rounded-full transition-all duration-300 ${active ? 'w-8 bg-primary' : 'w-5 bg-primary/60'}`} />
+              </div>
+            );
+          })}
+          <div className="mt-0.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+            {planTokens > 0 ? `${planTokens} tokens` : ''}
           </div>
         </nav>
       )}
@@ -752,6 +810,14 @@ function GainsCheck() {
             {planError && (
               <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{planError}</div>
             )}
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="space-y-4">
+            {planError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{planError}</div>
+            )}
 
             {planBusy && (
               <div className="rounded-xl border p-8 text-center">
@@ -892,12 +958,25 @@ function GainsCheck() {
                 onClick={() => setStep(4)}
                 className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
               >
-                Next: Plan →
+                Next: Goal →
               </button>
             )}
           </div>
         )}
         {step === 4 && (
+          <button
+            type="button"
+            onClick={() => {
+              generatePlan();
+              setStep(5);
+            }}
+            disabled={planBusy || !goal}
+            className="rounded-md bg-primary px-6 py-2 text-base font-bold text-primary-foreground disabled:opacity-50"
+          >
+            🎯 Create my plan
+          </button>
+        )}
+        {step === 5 && (
           <div className="flex gap-2">
             <button
               type="button"
@@ -909,11 +988,11 @@ function GainsCheck() {
             </button>
             <button
               type="button"
-              onClick={generatePlan}
+              onClick={() => generatePlan()}
               disabled={planBusy || !goal}
-              className="rounded-md bg-primary px-5 py-2 text-sm font-bold text-primary-foreground disabled:opacity-50"
+              className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
-              {planBusy ? 'PANEL WORKING…' : planResult ? '↻ Regenerate plan' : '🎯 Create my plan'}
+              {planBusy ? 'PANEL WORKING…' : '↻ Regenerate'}
             </button>
           </div>
         )}

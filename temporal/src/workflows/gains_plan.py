@@ -100,23 +100,24 @@ class GainsPlanWorkflow:
             return {"plan_id": plan_id, "error": str(exc)}
 
     async def _model(self, messages, tools, tool_name, max_tokens=1024):
-        """One forced-tool model turn; returns parsed tool args (or {})."""
+        """One forced-tool model turn; returns (parsed tool args, total tokens used)."""
         resp = await workflow.execute_activity(
             "model_chat",
             args=[messages, tools, max_tokens, {"type": "function", "function": {"name": tool_name}}],
             start_to_close_timeout=_MODEL_TIMEOUT,
             retry_policy=RetryPolicy(maximum_attempts=3),
         )
+        tokens = (resp.get("usage") or {}).get("total")
         for tc in resp.get("tool_calls") or []:
             if tc["name"] == tool_name:
                 try:
-                    return json.loads(tc["arguments"] or "{}")
+                    return json.loads(tc["arguments"] or "{}"), tokens
                 except json.JSONDecodeError:
-                    return {}
-        return {}
+                    return {}, tokens
+        return {}, tokens
 
     async def _advisor(self, advisor: dict, ctx_content: str) -> dict:
-        args = await self._model(
+        args, tokens = await self._model(
             [
                 {"role": "system", "content": _advisor_system(advisor)},
                 {"role": "user", "content": ctx_content},
@@ -133,6 +134,7 @@ class GainsPlanWorkflow:
             "calorie_guidance": args.get("calorie_guidance") or "",
             "protein_guidance": args.get("protein_guidance") or "",
             "training_focus": args.get("training_focus") or "",
+            "_tokens": tokens,
         }
 
     async def _execute(self, plan_id: str, user_input: dict) -> dict:
@@ -147,11 +149,30 @@ class GainsPlanWorkflow:
             + f" Their stats/verdict: {json.dumps(ctx)}."
         )
 
-        # 1) Dispatch the specialist panel IN PARALLEL.
+        seq = 0
+
+        async def emit(stage: str, label: str, detail: object = None, tokens: int | None = None) -> None:
+            nonlocal seq
+            seq += 1
+            await workflow.execute_activity(
+                "record_plan_event",
+                args=[plan_id, seq, stage, label, detail, tokens],
+                start_to_close_timeout=_ACTIVITY_TIMEOUT,
+            )
+
+        await emit(
+            "dispatched",
+            "Temporal · GainsPlanWorkflow",
+            {"panel_size": len(ADVISORS), "goal": goal_label},
+        )
+
+        # 1) Dispatch the specialist panel IN PARALLEL, then record each contribution.
         panel = await asyncio.gather(*[self._advisor(a, ctx_content) for a in ADVISORS])
+        for p in panel:
+            await emit("agent", f"Agent · {p['title']}", {"headline": (p["headline"] or "")[:90], "points": len(p["points"])}, p.get("_tokens"))
 
         # 2) Head coach synthesizes the panel into one plan.
-        synth_args = await self._model(
+        synth_args, synth_tokens = await self._model(
             [
                 {"role": "system", "content": _synth_system(persona)},
                 {"role": "user", "content": f"{ctx_content}\n\nPanel advice: {json.dumps(panel)}\n\nWrite the final plan."},
@@ -160,6 +181,7 @@ class GainsPlanWorkflow:
             "submit_plan",
             max_tokens=4096,
         )
+        await emit("synth", "Head coach · synthesis", {"resources": len(synth_args.get("resource_urls") or [])}, synth_tokens)
 
         # Fall back to the nutrition advisor's numbers if the synthesizer left them blank.
         nutri = next((p for p in panel if p["key"] == "nutrition"), {})
@@ -176,6 +198,7 @@ class GainsPlanWorkflow:
             # Make the collaboration visible: what each agent contributed.
             "panel": [{"title": p["title"], "headline": p["headline"], "points": p["points"]} for p in panel],
         }
+        await emit("finalized", "Supabase · plan saved", {"goal": goal_label, "steps": len(result["weekly_steps"])})
         await workflow.execute_activity(
             "finalize_plan", args=[plan_id, "done", result, None], start_to_close_timeout=_ACTIVITY_TIMEOUT
         )
