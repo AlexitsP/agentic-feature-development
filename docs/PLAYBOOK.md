@@ -313,6 +313,16 @@ and consider shipping both behind a `mode` flag on the run row:
 Both use the identical §3 skeleton — the only difference is whether `tool_choice` is forced and
 whether code overrides the model's choices. Default to the reliable end and open up per feature.
 
+**Multi-agent panel (collaboration).** When one agent's perspective isn't enough, fan out several
+**specialist agents in parallel** — `asyncio.gather` over `model_chat`, each forced to return its
+slice via its own tool — then a **synthesizer agent** reconciles them into one result. Wall-clock ≈
+the slowest agent, not the sum. Keep any must-be-correct output (e.g. citation links) **constrained
+in code to a curated list** rather than trusting the model to invent it, and surface each agent's
+contribution so the collaboration is visible. Watch the per-stage token budget: a forced tool call
+on a reasoning model returns **empty args** if reasoning exhausts the completion budget first —
+budget by input size. (Worked example in this repo: the Gains Plan panel — 3 specialists → head
+coach — in `docs/adrs/0005-gains-plan-multi-agent-panel.md`.)
+
 ---
 
 ## 7. Scaling to a larger product (many features, a team, real users)

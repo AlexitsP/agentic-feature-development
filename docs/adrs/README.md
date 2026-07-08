@@ -23,6 +23,7 @@ Architectural decisions (data model, orchestration engine, deployment topology, 
 | [0002](./0002-gains-check-guided-vs-agentic-engine.md) | Gains Check — Guided vs Agentic engine toggle | Accepted |
 | [0003](./0003-testing-strategy.md) | Testing strategy — unit + Temporal workflow tests, CI fails loud | Accepted |
 | [0004](./0004-deployment-posture-local-only.md) | Deployment posture — local-only for now | Accepted |
+| [0005](./0005-gains-plan-multi-agent-panel.md) | Gains Plan — multi-agent panel (parallel specialists → synthesizer) | Accepted |
 
 ## Maintenance note
 
