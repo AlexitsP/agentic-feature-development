@@ -1,9 +1,20 @@
 # ADR-0007: Owner-scoped RLS + auth (proposal for SEC-1)
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-08
-**Deciders:** Patrik Alexits (direction), Claude (proposal)
+**Deciders:** Patrik Alexits (direction), Claude (proposal + implementation)
 **Technical Story:** SEC-1 (High) — open RLS + no app auth; the gate for leaving local scope
+
+> **Implemented 2026-07-08.** Between proposal and acceptance the app was rebranded to
+> "Plan my studies" and the gains tables were removed (PR #36), so the concrete tables are now
+> `program_evaluations` + `program_evaluation_events`, not the `gains_*` tables the sketch below
+> references. The **design is unchanged** — `user_id uuid default auth.uid()`, owner-scoped
+> `authenticated` policies, blanket-`anon` dropped, worker service-role writes untouched — applied
+> to the current run tables. Sign-in uses **anonymous Supabase Auth** (each visitor gets an
+> `auth.uid()` for isolation without a full sign-up flow; email/SSO can replace it later without
+> changing callers, which just `await ensureSession()`). Files:
+> `supabase/migrations/20260708190000_owner_scoped_rls.sql`, `frontend/src/data/auth.ts`,
+> `enable_anonymous_sign_ins = true` in `supabase/config.toml`.
 
 ## Context
 
@@ -206,3 +217,7 @@ are out of scope for this ADR beyond flagging them:
 - Dev-server production image: `frontend/Dockerfile` (`CMD ["npm","run","dev", ...]`).
 - SEC-2 partial rate-limit already merged: `supabase/migrations/20260708160000_gains_input_size_cap.sql` (PR #20).
 - Local-only posture: [ADR-0004](./0004-deployment-posture-local-only.md), CLAUDE.md.
+- **Implementation (Accepted 2026-07-08):** owner-scoped migration on the current run tables
+  `supabase/migrations/20260708190000_owner_scoped_rls.sql`; anonymous-session helper
+  `frontend/src/data/auth.ts` awaited before insert in `frontend/src/routes/evaluate.tsx`;
+  `enable_anonymous_sign_ins = true` in `supabase/config.toml`.
