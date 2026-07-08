@@ -33,7 +33,14 @@ def _claim(table: str, select: str) -> list[dict]:
     with httpx.Client(timeout=15.0) as client:
         resp = client.patch(
             f"{base}/{table}",
-            params={"status": "eq.pending", "select": select},
+            # SEC-2: bound rows claimed per iteration so an anon-key insert flood
+            # cannot spawn unbounded concurrent (paid) workflows. Oldest first.
+            params={
+                "status": "eq.pending",
+                "select": select,
+                "limit": "50",
+                "order": "created_at.asc",
+            },
             headers=headers,
             json={"status": "running"},
         )
