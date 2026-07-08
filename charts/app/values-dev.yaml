@@ -71,23 +71,3 @@ temporalWorker:
     supabaseServiceRoleKey:
       secretName: "temporal-worker-secrets-<DEV_NAMESPACE>"
       key: "SUPABASE_SERVICE_ROLE_KEY"
-
-opsApi:
-  replicaCount: 1
-  image:
-    repository: "temporal-worker"
-    tag: "dev-latest"
-    # Digest is set at deploy time (deploy-dev.yml --set opsApi.image.digest=sha256:...).
-    digest: ""
-    pullPolicy: Always
-  imagePullSecrets:
-    - name: acr-pull
-  temporal:
-    address: "temporal-frontend.dev.svc.cluster.local:7233"
-    namespace: "default"
-  supabase:
-    url: "http://supabase-supabase-kong.<SUPABASE_NAMESPACE>.svc.cluster.local"
-  secrets:
-    supabaseServiceRoleKey:
-      secretName: "temporal-worker-secrets-<DEV_NAMESPACE>"
-      key: "SUPABASE_SERVICE_ROLE_KEY"
