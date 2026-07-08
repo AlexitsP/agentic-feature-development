@@ -7,6 +7,7 @@
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/router-devtools';
 import { enabledFeatures } from '@/features/registry';
+import { Logo } from '@/components/Logo';
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -18,8 +19,8 @@ function RootComponent() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-1 px-6 py-3 text-sm">
-          <Link to="/" className="font-semibold">
-            🎓 Plan my studies
+          <Link to="/" aria-label="AlpacAI home">
+            <Logo markSize={24} />
           </Link>
           <span className="text-muted-foreground">·</span>
           {features.map((f) => (

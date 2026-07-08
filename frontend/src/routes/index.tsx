@@ -7,6 +7,7 @@
  */
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { enabledFeatures } from '@/features/registry';
+import { AlpacaMark } from '@/components/Logo';
 
 export const Route = createFileRoute('/')({
   component: Launcher,
@@ -35,15 +36,20 @@ function Launcher() {
   const apps = enabledFeatures();
   return (
     <div className="mx-auto max-w-3xl">
-      {/* Hero — the kernel is the product */}
+      {/* Hero — AlpacAI, the product */}
       <section className="mb-10">
         <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">
-          ⚙️ Agentic-app platform
+          ⚙️ Swiss AI learning platform
         </span>
-        <h1 className="mt-3 text-4xl font-bold tracking-tight">The Kernel</h1>
-        <p className="mt-2 text-lg text-muted-foreground">
-          A plugin host for agentic apps. Each app self-registers as a plugin and runs on the
-          kernel’s shared runtime — so a new app is a package, not a rebuild.
+        <div className="mt-3 flex items-center gap-3">
+          <AlpacaMark size={52} />
+          <h1 className="text-4xl font-bold tracking-tight">
+            Alpac<span style={{ color: '#6C5CE7' }}>AI</span>
+          </h1>
+        </div>
+        <p className="mt-3 text-lg text-muted-foreground">
+          A Swiss AI hub for learning — a plugin host for agentic apps. Each app self-registers as a
+          plugin and runs on one shared runtime, so a new app is a package, not a rebuild.
         </p>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
           The browser only ever writes a <code className="rounded bg-muted px-1 py-0.5 text-xs">pending</code>{' '}
