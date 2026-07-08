@@ -5,8 +5,9 @@ describes their situation; one forced-tool model turn assesses fit and suggests 
 higher-education study options (field + institution type: University / UAS / PH), grounded in a
 curated official-Swiss source allowlist, with a kernel confidence badge (ADR-0009).
 
-Posture: **open-anon** during the local experiment (`requires_auth=false`; `program_evaluations`
-uses open RLS). See ADR-0011 for the auth-gate contract.
+Posture: **owner-scoped** (`requires_auth=true`; `program_evaluations` uses `auth.uid() = user_id`
+RLS — ADR-0007). The frontend ensures an anonymous Supabase Auth session before inserting, so the
+demo still needs no sign-up. See ADR-0011 for the auth-gate contract.
 
 ## Structure
 

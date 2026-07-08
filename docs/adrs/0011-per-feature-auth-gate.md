@@ -26,8 +26,10 @@ the flag from the registry rather than hardcoding it.
 the frontend; RLS is the enforcement; a mismatch means broken inserts (anon insert into an
 owner-scoped table is rejected), so the two are changed together.
 
-Initial values: `program_evaluator = false` (open-anon; runs on the local experiment without
-auth), `study_planner = true` (owner-scoped from creation).
+Values (reconciled 2026-07-08): **both** `program_evaluator = true` and `study_planner = true`
+— both tables are owner-scoped (ADR-0007). Anonymous Supabase Auth gives every visitor an
+`auth.uid()`, so owner-scoping adds real per-user isolation with no sign-up friction. (Initially
+`program_evaluator` shipped `false` as an experiment default; see the reconciliation note below.)
 
 ## Consequences
 
@@ -36,12 +38,14 @@ auth), `study_planner = true` (owner-scoped from creation).
 - New features declare their auth posture up front, next to their `enabled`/flags.
 - **New obligation:** keep `requiresAuth` and the table's RLS consistent. This is the single most
   likely footgun; treat them as one change.
-- **Known divergence to reconcile:** ADR-0007 (#37) added owner-scoped RLS to `program_evaluations`
-  as a standing migration, while the running experiment keeps it open (the migration was not applied
-  live). Per ADR-0004/0007, owner-scoping is the **cutover gate** for leaving local scope — so the
-  experiment runs `program_evaluator` open (`requiresAuth=false`), and going multi-user means
-  flipping it to `true` and taking auth live together. (Whether #37 should be a standing migration
-  vs. a cutover-only step is a separate cleanup.)
+- **Divergence — RESOLVED (2026-07-08).** ADR-0007 (#37) added owner-scoped RLS to
+  `program_evaluations` as a standing migration, but the manifest/frontend still declared
+  `requiresAuth=false`. A clean `make up` from `main` surfaced it: a fresh DB re-applies #37, and
+  an anon insert into `program_evaluations` then returns **401** (reproduced live). Reconciled by
+  flipping `program_evaluator` to `requiresAuth=true` (backend + frontend) to match the standing
+  migration — the frontend already ensures an anonymous session for gated features via
+  `ensureSessionIf`, so the demo keeps working with no sign-up. Both features are now owner-scoped
+  and consistent; the last open-anon (SEC-1) surface is closed. Verified end-to-end live.
 
 ## Alternatives considered
 
@@ -53,8 +57,8 @@ auth), `study_planner = true` (owner-scoped from creation).
 
 ## Evidence
 
-- Backend: `FeatureManifest.requires_auth` in `temporal/src/kernel/registry.py`; set on
-  `features/study_planner/manifest.py` (true) and `features/program_evaluator/manifest.py` (false).
+- Backend: `FeatureManifest.requires_auth` in `temporal/src/kernel/registry.py`; set true on both
+  `features/study_planner/manifest.py` and `features/program_evaluator/manifest.py`.
 - Frontend: `requiresAuth` in `frontend/src/features/registry.ts`; `ensureSessionIf` in
   `frontend/src/data/auth.ts`; routes `evaluate.tsx` / `plan.tsx` call it declaratively.
 - Auth mechanism + owner-scoping: ADR-0007. Plug-in registry + flags: ADR-0008, ADR-0010.

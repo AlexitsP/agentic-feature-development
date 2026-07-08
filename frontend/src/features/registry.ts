@@ -27,7 +27,7 @@ export const FEATURES: FeatureDef[] = [
     emoji: '🎓',
     path: '/evaluate',
     enabled: true,
-    requiresAuth: false, // open-anon during the local experiment
+    requiresAuth: true, // owner-scoped — matches program_evaluations RLS (ADR-0007)
   },
   {
     key: 'plan',
