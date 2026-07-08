@@ -8,6 +8,54 @@ your first change. For *why* things are shaped the way they are, read the
 
 ---
 
+## Starting a session with your agent (paste this)
+
+Claude Code **auto-loads `CLAUDE.md`** (the repo's governance base) when you open the repo, so the
+base is already active. Paste the prompt below at the start of a session anyway, to **(a)** get an
+explicit confirmation it loaded and **(b)** cover any agent/tool that doesn't auto-read `CLAUDE.md`.
+If it can parrot back the guardrails and repo facts, you *know* it's operating under the base.
+
+**Activation prompt:**
+```
+Before doing anything in this repo: read CLAUDE.md at the repo root and treat it as
+binding. It points to docs/PLAYBOOK.md — the "Guardrails (MUST / MUST-NOT)" there are
+binding too.
+
+Confirm you've actually loaded them by replying with:
+  1. the non-negotiable guardrails, one line each, and
+  2. this repo's facts (LLM host, Supabase + ports, container runtime, merge strategy,
+     RLS posture, deployment posture).
+
+Then for the rest of this session operate under that governance:
+  - read PLAYBOOK §3 before adding/changing a feature, §4 before debugging;
+  - branch off main and open a PR for any change; never reuse a merged branch;
+  - verify end-to-end (insert → poll done), not on compile/CI-green;
+  - anything touching >1 component / a service / a security/data/deploy boundary → add an ADR.
+
+If you cannot see CLAUDE.md, stop and tell me — do not proceed.
+```
+
+Once confirmed, keep day-to-day prompts short — the governance routes the agent for you:
+
+**Add a feature:**
+```
+New agentic feature `<name>`: <one line of what it does>.
+Follow CLAUDE.md + PLAYBOOK §3 and the guardrails. Tools it needs: <…>.
+Terminal output / verdict schema: <…>. Namespace everything as `<name>`
+(table, workflow, queue, route). Verify end-to-end, then open a PR.
+```
+
+**Debug:**
+```
+<symptom> (e.g. `make up` fails / migration 42501 / model won't call the tool).
+Check PLAYBOOK §4 (the landmine table) first, per CLAUDE.md.
+```
+
+> Standing the kit up in a **fresh** repo (not this one) is a one-time adoption step, not a
+> per-session prompt — see [`docs/PLAYBOOK.md`](docs/PLAYBOOK.md) §9.
+
+---
+
 ## 1. What this is
 
 A JSON-driven **Supabase + Temporal + Vite/React** stack with two agentic features built on it:
