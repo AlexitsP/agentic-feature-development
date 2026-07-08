@@ -6,7 +6,7 @@
  * the line (Web Speech API) and flashes the headline.
  */
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/data/supabase';
 
 export const Route = createFileRoute('/gains')({
@@ -110,6 +110,9 @@ interface TraceEvent {
   tokens: number | null;
 }
 
+// Empty numeric field -> null; otherwise the parsed number. Pure, so hoisted out of the component.
+const num = (v: string) => (v.trim() === '' ? null : Number(v));
+
 function GainsCheck() {
   const [form, setForm] = useState({ weight_kg: '', body_fat_pct: '', calories: '', protein_g: '' });
   const [persona, setPersona] = useState<string>('gymbro');
@@ -132,9 +135,7 @@ function GainsCheck() {
   const startingRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
 
-  const num = (v: string) => (v.trim() === '' ? null : Number(v));
-
-  const start = useCallback(async () => {
+  const start = async () => {
     if (startingRef.current) return;
     startingRef.current = true;
     setResult(null);
@@ -164,12 +165,17 @@ function GainsCheck() {
       return;
     }
     setCheckId(data.id as string);
-  }, [form, persona, mode, inputMode, freeform]);
+  };
 
   useEffect(() => {
     if (!checkId) return;
-    const mergeEvent = (e: TraceEvent) =>
+    // Skip state writes after teardown (checkId change / unmount) — the realtime
+    // handlers and the un-cancellable backfill query below must no-op once stale.
+    let cancelled = false;
+    const mergeEvent = (e: TraceEvent) => {
+      if (cancelled) return;
       setEvents((prev) => (prev.some((p) => p.seq === e.seq) ? prev : [...prev, e].sort((a, b) => a.seq - b.seq)));
+    };
 
     const channel = supabase
       .channel(`gains-${checkId}`)
@@ -177,6 +183,7 @@ function GainsCheck() {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'gains_checks', filter: `id=eq.${checkId}` },
         (payload) => {
+          if (cancelled) return;
           const row = payload.new as { status: Status; result: GainsResult | null; error: string | null };
           setStatus(row.status);
           if (row.error) setError(row.error);
@@ -201,6 +208,7 @@ function GainsCheck() {
       .then(({ data }) => (data as TraceEvent[] | null)?.forEach(mergeEvent));
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, [checkId]);
@@ -208,13 +216,17 @@ function GainsCheck() {
   // Live subscription for the plan run (separate gains_plans row).
   useEffect(() => {
     if (!planCheckId) return;
+    let cancelled = false;
     const applyRow = (row: { status: Status; result: GainsPlan | null; error: string | null }) => {
+      if (cancelled) return;
       setPlanStatus(row.status);
       if (row.error) setPlanError(row.error);
       if (row.result) setPlanResult(row.result);
     };
-    const mergePlanEvent = (e: TraceEvent) =>
+    const mergePlanEvent = (e: TraceEvent) => {
+      if (cancelled) return;
       setPlanEvents((prev) => (prev.some((p) => p.seq === e.seq) ? prev : [...prev, e].sort((a, b) => a.seq - b.seq)));
+    };
     const channel = supabase
       .channel(`gains-plan-${planCheckId}`)
       .on(
@@ -245,7 +257,7 @@ function GainsCheck() {
     };
   }, [planCheckId]);
 
-  const generatePlan = useCallback(async () => {
+  const generatePlan = async () => {
     setPlanResult(null);
     setPlanError(null);
     setPlanEvents([]);
@@ -275,7 +287,7 @@ function GainsCheck() {
       return;
     }
     setPlanCheckId(data.id as string);
-  }, [goal, goalDetail, inputMode, freeform, form, result, persona, mode]);
+  };
 
   const resetAll = () => {
     setResult(null);
