@@ -1,6 +1,6 @@
 # Tech Stack
 
-Every technology in **AlpacAI**, its version, and why it's here. Versions are the
+Every technology in **SLH AI Hub**, its version, and why it's here. Versions are the
 source-of-truth manifests (`frontend/package.json`, `temporal/pyproject.toml`,
 `supabase/config.toml`, `docker-compose.yml`).
 

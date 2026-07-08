@@ -19,7 +19,7 @@ function RootComponent() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-1 px-6 py-3 text-sm">
-          <Link to="/" aria-label="AlpacAI home">
+          <Link to="/" aria-label="SLH AI Hub home">
             <Logo markSize={24} />
           </Link>
           <span className="text-muted-foreground">·</span>

@@ -4,8 +4,8 @@
 so every teammate's Claude reads the identical version — that is what keeps us standardized. Do
 not fork or weaken it in a feature branch; changes go through a normal reviewed PR.
 
-This repo is **AlpacAI** — a Swiss AI hub for learning, built as a **kernel +
-feature-plugin platform** (Supabase + Temporal + Vite/React + Azure OpenAI). Start at
+This repo is **SLH AI Hub** — Swiss Learning Hub's platform for agentic learning apps, built as a
+**kernel + feature-plugin platform** (Supabase + Temporal + Vite/React + Azure OpenAI). Start at
 [`docs/Documentation_Index.md`](docs/Documentation_Index.md).
 
 ## Activation (governance)
