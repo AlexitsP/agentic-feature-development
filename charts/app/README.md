@@ -156,28 +156,6 @@ helm upgrade --install app-prod charts/app -n <PROD_NAMESPACE> -f charts/app/val
 | `temporalWorker.secrets.supabaseServiceRoleKey.secretName` | string | `"temporal-worker-secrets"` | Secret containing service-role key |
 | `temporalWorker.secrets.supabaseServiceRoleKey.key` | string | `"SUPABASE_SERVICE_ROLE_KEY"` | Key within the Secret |
 
-### Operations API
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `opsApi.replicaCount` | int | `1` | Number of pod replicas |
-| `opsApi.image.registry` | string | `""` | Registry (overrides `imageRegistry`) |
-| `opsApi.image.repository` | string | `"your-org/temporal-worker"` | Image repository (same image as worker) |
-| `opsApi.image.tag` | string | `"latest"` | Image tag |
-| `opsApi.image.pullPolicy` | string | `"Always"` | Image pull policy |
-| `opsApi.imagePullSecrets` | list | `[]` | Pull-secret names |
-| `opsApi.podSecurityContext` | object | `runAsNonRoot`, uid/gid `10001`, `seccompProfile: RuntimeDefault` | Pod security context |
-| `opsApi.securityContext` | object | `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, `capabilities.drop: [ALL]` | Container security context |
-| `opsApi.service.type` | string | `"ClusterIP"` | Service type |
-| `opsApi.service.port` | int | `8000` | Service port |
-| `opsApi.resources` | object | 100m/128Mi req, 500m/512Mi lim | Pod resource requests/limits |
-| `opsApi.livenessProbe` | object | HTTP GET `/api/ops/health` :8000 | Liveness probe config |
-| `opsApi.readinessProbe` | object | HTTP GET `/api/ops/health` :8000 | Readiness probe config |
-| `opsApi.temporal.address` | string | `"temporal:7233"` | Temporal server address |
-| `opsApi.temporal.namespace` | string | `"default"` | Temporal namespace |
-| `opsApi.supabase.url` | string | `"http://supabase:8000"` | `SUPABASE_URL` value |
-| `opsApi.secrets.supabaseServiceRoleKey.secretName` | string | `"temporal-worker-secrets"` | Secret containing service-role key |
-| `opsApi.secrets.supabaseServiceRoleKey.key` | string | `"SUPABASE_SERVICE_ROLE_KEY"` | Key within the Secret |
 
 ---
 

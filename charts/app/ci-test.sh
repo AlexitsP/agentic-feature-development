@@ -64,8 +64,6 @@ BASE=$(helm template "$RELEASE" "$CHART")
 
 assert_contains     "$BASE" "base: frontend Deployment present"         "kind: Deployment"
 assert_contains     "$BASE" "base: Service present"                     "kind: Service"
-assert_contains     "$BASE" "base: ops-api Deployment present"          "name: ${RELEASE}-app-ops-api"
-assert_contains     "$BASE" "base: ops-api Service present"             "name: ${RELEASE}-app-ops-api"
 assert_contains     "$BASE" "base: secretKeyRef used for frontend key"  "secretKeyRef"
 # No Ingress by default
 assert_not_contains "$BASE" "base: no Ingress rendered by default"      "kind: Ingress"
@@ -84,17 +82,6 @@ assert_contains     "$BASE" "base: all capabilities dropped"             "drop:"
 assert_contains     "$BASE" "base: frontend nginx cache writable mount"  "mountPath: /var/cache/nginx"
 assert_contains     "$BASE" "base: frontend run dir writable mount"      "mountPath: /var/run"
 assert_contains     "$BASE" "base: worker tmp writable mount"            "name: temporal-worker-tmp"
-assert_contains     "$BASE" "base: ops-api tmp writable mount"           "name: ops-api-tmp"
-assert_not_contains "$BASE" "base: ops-api SUPABASE_SERVICE_ROLE_KEY not literal" "value:.*SUPABASE_SERVICE_ROLE_KEY"
-
-# ops-api-scoped hardening assertions — these fail if ops-api loses its security contexts
-OPS_API_DEPLOY=$(awk 'BEGIN{RS="---\n"; ORS=""} /kind: Deployment/ && /component: ops-api/' <<<"$BASE")
-assert_contains "$OPS_API_DEPLOY" "base: ops-api podSecurityContext runAsNonRoot"    "runAsNonRoot: true"
-assert_contains "$OPS_API_DEPLOY" "base: ops-api podSecurityContext runAsUser=10001" "runAsUser: 10001"
-assert_contains "$OPS_API_DEPLOY" "base: ops-api seccomp RuntimeDefault"             "type: RuntimeDefault"
-assert_contains "$OPS_API_DEPLOY" "base: ops-api allowPrivilegeEscalation=false"     "allowPrivilegeEscalation: false"
-assert_contains "$OPS_API_DEPLOY" "base: ops-api readOnlyRootFilesystem"             "readOnlyRootFilesystem: true"
-assert_contains "$OPS_API_DEPLOY" "base: ops-api capabilities.drop ALL"              "drop:"
 
 # frontend-scoped hardening assertions — guardrail: fail if frontend loses its security contexts
 FRONTEND_DEPLOY=$(awk 'BEGIN{RS="---\n"; ORS=""} /kind: Deployment/ && /component: frontend/' <<<"$BASE")
@@ -131,13 +118,10 @@ DIGEST_RENDER=$(helm template "$RELEASE" "$CHART" \
   --set "frontend.image.repository=frontend" \
   --set "frontend.image.digest=${DIGEST_SHA}" \
   --set "temporalWorker.image.repository=temporal-worker" \
-  --set "temporalWorker.image.digest=${DIGEST_SHA}" \
-  --set "opsApi.image.repository=temporal-worker" \
-  --set "opsApi.image.digest=${DIGEST_SHA}")
+  --set "temporalWorker.image.digest=${DIGEST_SHA}")
 
 assert_contains     "$DIGEST_RENDER" "digest: frontend image uses @sha256: form"         "image: example.azurecr.io/frontend@sha256:"
 assert_contains     "$DIGEST_RENDER" "digest: worker image uses @sha256: form"           "image: example.azurecr.io/temporal-worker@sha256:"
-assert_contains     "$DIGEST_RENDER" "digest: ops-api image uses @sha256: form"          "image: example.azurecr.io/temporal-worker@sha256:"
 assert_not_contains "$DIGEST_RENDER" "digest: no :tag suffix when digest is set"         "image: example.azurecr.io/frontend:latest"
 
 # ── dev profile ───────────────────────────────────────────────────────────────
@@ -159,13 +143,11 @@ fi
 assert_contains     "$DEV_FRONTEND_SERVICE" "dev: frontend service type=LoadBalancer" "type: LoadBalancer"
 assert_contains     "$DEV" "dev: frontend image tag=dev-latest"         "image: (.*/)?frontend:dev-latest"
 assert_contains     "$DEV" "dev: worker image tag=dev-latest"           "image: (.*/)?temporal-worker:dev-latest"
-assert_contains     "$DEV" "dev: ops-api image tag=dev-latest"          "image: (.*/)?temporal-worker:dev-latest"
 assert_contains     "$DEV" "dev: temporal namespace=<DEV_NAMESPACE>"          "<DEV_NAMESPACE>"
 assert_contains     "$DEV" "dev: temporal taskQueue=<DEV_NAMESPACE>-main"     "<DEV_NAMESPACE>-main"
 assert_contains     "$DEV" "dev: secretKeyRef present"                  "secretKeyRef"
 assert_contains     "$DEV" "dev: frontend secret=frontend-secrets-<DEV_NAMESPACE>"       "frontend-secrets-<DEV_NAMESPACE>"
 assert_contains     "$DEV" "dev: worker secret=temporal-worker-secrets-<DEV_NAMESPACE>"  "temporal-worker-secrets-<DEV_NAMESPACE>"
-assert_contains     "$DEV" "dev: ops-api health endpoint configured"    "/api/ops/health"
 assert_contains     "$DEV_VALUES" "dev values: frontend Supabase URL uses HTTPS"    "supabaseUrl: \"https://"
 assert_contains     "$DEV_VALUES" "dev values: frontend API URL uses HTTPS"         "apiUrl: \"https://"
 assert_not_contains "$DEV" "dev: VITE_SUPABASE_ANON_KEY not literal"   "value:.*VITE_SUPABASE_ANON_KEY"
@@ -189,10 +171,8 @@ assert_contains "$DEV_WORKER_DEPLOY" "dev: temporal-worker /tmp writable mount" 
 
 # dev profile: live-env deploy wiring — acr-pull imagePullSecret, in-cluster Temporal, resource sizing
 # These assertions guard the settings that keep the live dev environment working after PR #106/#407.
-DEV_OPS_API_DEPLOY=$(awk 'BEGIN{RS="---\n"; ORS=""} /kind: Deployment/ && /component: ops-api/' <<<"$DEV")
 assert_contains "$DEV_FRONTEND_DEPLOY" "dev: frontend imagePullSecrets=acr-pull"    "name: acr-pull"
 assert_contains "$DEV_WORKER_DEPLOY"   "dev: temporal-worker imagePullSecrets=acr-pull" "name: acr-pull"
-assert_contains "$DEV_OPS_API_DEPLOY"  "dev: ops-api imagePullSecrets=acr-pull"     "name: acr-pull"
 assert_contains "$DEV_WORKER_DEPLOY" "dev: temporal-worker temporal address=in-cluster svc" \
   "temporal-frontend\\.dev\\.svc\\.cluster\\.local:7233"
 assert_contains "$DEV_FRONTEND_DEPLOY" "dev: frontend memory request=512Mi"         "memory: 512Mi"
@@ -211,7 +191,6 @@ assert_contains     "$TEST" "test: ingress host=frontend.<TEST_DOMAIN>"  "fronte
 assert_contains     "$TEST" "test: ingress className=nginx"              "ingressClassName: nginx"
 assert_contains     "$TEST" "test: frontend image tag prefix=test-"      "/frontend:test-"
 assert_contains     "$TEST" "test: worker image tag prefix=test-"        "/temporal-worker:test-"
-assert_contains     "$TEST" "test: ops-api image tag prefix=test-"       "/temporal-worker:test-"
 assert_contains     "$TEST" "test: temporal namespace=<TEST_NAMESPACE>"        "<TEST_NAMESPACE>"
 assert_contains     "$TEST" "test: temporal taskQueue=<TEST_NAMESPACE>-main"   "<TEST_NAMESPACE>-main"
 assert_contains     "$TEST" "test: secretKeyRef present"                 "secretKeyRef"
@@ -249,7 +228,6 @@ assert_contains     "$PROD" "prod: ingress host=frontend.<PROD_DOMAIN>"  "fronte
 assert_contains     "$PROD" "prod: ingress className=nginx"              "ingressClassName: nginx"
 assert_contains     "$PROD" "prod: frontend image tag prefix=prod-"      "/frontend:prod-"
 assert_contains     "$PROD" "prod: worker image tag prefix=prod-"        "/temporal-worker:prod-"
-assert_contains     "$PROD" "prod: ops-api image tag prefix=prod-"       "/temporal-worker:prod-"
 assert_contains     "$PROD" "prod: temporal namespace=<PROD_NAMESPACE>"        "<PROD_NAMESPACE>"
 assert_contains     "$PROD" "prod: temporal taskQueue=<PROD_NAMESPACE>-main"   "<PROD_NAMESPACE>-main"
 assert_contains     "$PROD" "prod: secretKeyRef present"                 "secretKeyRef"
@@ -318,7 +296,6 @@ else
     assert_contains "$HELM_UPGRADE_STEP" "workflow: helm upgrade step uses values-dev.yaml"              "charts/app/values-dev\\.yaml"
     assert_contains "$HELM_UPGRADE_STEP" "workflow: helm upgrade step sets frontend.image.tag"           "frontend\\.image\\.tag"
     assert_contains "$HELM_UPGRADE_STEP" "workflow: helm upgrade step sets temporalWorker.image.tag"     "temporalWorker\\.image\\.tag"
-    assert_contains "$HELM_UPGRADE_STEP" "workflow: helm upgrade step sets opsApi.image.tag"             "opsApi\\.image\\.tag"
   fi
 fi
 
