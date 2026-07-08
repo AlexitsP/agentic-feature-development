@@ -25,14 +25,6 @@ export const FEATURES: FeatureDef[] = [
     enabled: true,
   },
   {
-    key: 'gains',
-    title: 'Gains Check',
-    description: 'The original fitness demo — kept as a plug-in.',
-    emoji: '💪',
-    path: '/gains',
-    enabled: true,
-  },
-  {
     // Disabled stub: registered, but toggled off. Flipping `enabled` is the only edit
     // needed to surface it — nothing else in the app changes.
     key: 'how-to-study',

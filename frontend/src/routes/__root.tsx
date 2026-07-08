@@ -1,5 +1,5 @@
 /**
- * Root Route — minimal app shell (Gains Check is the whole app).
+ * Root Route — minimal app shell for the Plan my studies app.
  */
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/router-devtools';

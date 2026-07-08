@@ -14,8 +14,8 @@ function Launcher() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">🎓 Study Advisor</h1>
-        <p className="text-muted-foreground">Pick a tool to get started.</p>
+        <h1 className="text-3xl font-bold tracking-tight">🎓 Plan my studies</h1>
+        <p className="text-muted-foreground">Tools to help you choose and plan your Swiss studies.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {features.map((f) => (

@@ -9,15 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as GainsRouteImport } from './routes/gains'
 import { Route as EvaluateRouteImport } from './routes/evaluate'
 import { Route as IndexRouteImport } from './routes/index'
 
-const GainsRoute = GainsRouteImport.update({
-  id: '/gains',
-  path: '/gains',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const EvaluateRoute = EvaluateRouteImport.update({
   id: '/evaluate',
   path: '/evaluate',
@@ -32,42 +26,31 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/evaluate': typeof EvaluateRoute
-  '/gains': typeof GainsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/evaluate': typeof EvaluateRoute
-  '/gains': typeof GainsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/evaluate': typeof EvaluateRoute
-  '/gains': typeof GainsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/evaluate' | '/gains'
+  fullPaths: '/' | '/evaluate'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/evaluate' | '/gains'
-  id: '__root__' | '/' | '/evaluate' | '/gains'
+  to: '/' | '/evaluate'
+  id: '__root__' | '/' | '/evaluate'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EvaluateRoute: typeof EvaluateRoute
-  GainsRoute: typeof GainsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/gains': {
-      id: '/gains'
-      path: '/gains'
-      fullPath: '/gains'
-      preLoaderRoute: typeof GainsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/evaluate': {
       id: '/evaluate'
       path: '/evaluate'
@@ -88,7 +71,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   EvaluateRoute: EvaluateRoute,
-  GainsRoute: GainsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
