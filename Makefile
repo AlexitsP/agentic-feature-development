@@ -17,9 +17,14 @@ COMPOSE_CMD=docker compose $(foreach file,$(COMPOSE_FILES),-f $(file))
 # `up` starts the full local Supabase stack (Postgres + API/Kong + Auth +
 # Storage + Studio) via the Supabase CLI, applying migrations and seed, THEN
 # brings up Temporal + worker + frontend via docker compose.
+#
+# `--build` is deliberate: base-compose containers don't hot-reload, so without
+# it `docker compose up` silently reuses a stale pre-built image and runs old
+# source against a freshly-migrated DB. Layer caching makes this near-instant
+# when nothing changed.
 up:
 	supabase start
-	@eval "$$(./scripts/supabase-env.sh)"; $(COMPOSE_CMD) up -d
+	@eval "$$(./scripts/supabase-env.sh)"; $(COMPOSE_CMD) up -d --build
 	@echo ""
 	@echo "Stack up. Frontend http://localhost:3000 | Temporal UI http://localhost:8080 | Supabase Studio http://localhost:54323"
 
