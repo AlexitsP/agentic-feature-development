@@ -1,7 +1,7 @@
 /**
  * Program Evaluator — Swiss higher-education fit + suggested study options.
  *
- * Same run-row + Realtime pattern as the gains route: insert a `pending`
+ * Run-row + Realtime pattern: insert a `pending`
  * program_evaluations row, then stream status/result and trace events back via
  * Supabase Realtime. The result carries a kernel-computed confidence badge (ADR-0009).
  */

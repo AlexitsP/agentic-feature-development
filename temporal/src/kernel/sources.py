@@ -1,6 +1,6 @@
 """Kernel: curated source-allowlist resolution + grounding measure (ADR-0009).
 
-Generalizes the Gains-era `resolve_plan_resources`: a feature declares a curated
+A feature declares a curated
 allowlist of official sources, and the model may only surface links from it — an
 invented or off-list URL is dropped rather than shown to a student. The same
 allowlist is used to measure `grounding` for the confidence score.
