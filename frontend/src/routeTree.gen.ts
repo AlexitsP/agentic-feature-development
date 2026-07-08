@@ -10,13 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as GainsRouteImport } from './routes/gains'
+import { Route as EvaluateRouteImport } from './routes/evaluate'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as EntitiesEntityTypeIndexRouteImport } from './routes/entities/$entityType/index'
-import { Route as EntitiesEntityTypeIdRouteImport } from './routes/entities/$entityType/$id'
 
 const GainsRoute = GainsRouteImport.update({
   id: '/gains',
   path: '/gains',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EvaluateRoute = EvaluateRouteImport.update({
+  id: '/evaluate',
+  path: '/evaluate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -24,58 +28,35 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EntitiesEntityTypeIndexRoute = EntitiesEntityTypeIndexRouteImport.update({
-  id: '/entities/$entityType/',
-  path: '/entities/$entityType/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EntitiesEntityTypeIdRoute = EntitiesEntityTypeIdRouteImport.update({
-  id: '/entities/$entityType/$id',
-  path: '/entities/$entityType/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/evaluate': typeof EvaluateRoute
   '/gains': typeof GainsRoute
-  '/entities/$entityType/$id': typeof EntitiesEntityTypeIdRoute
-  '/entities/$entityType': typeof EntitiesEntityTypeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/evaluate': typeof EvaluateRoute
   '/gains': typeof GainsRoute
-  '/entities/$entityType/$id': typeof EntitiesEntityTypeIdRoute
-  '/entities/$entityType': typeof EntitiesEntityTypeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/evaluate': typeof EvaluateRoute
   '/gains': typeof GainsRoute
-  '/entities/$entityType/$id': typeof EntitiesEntityTypeIdRoute
-  '/entities/$entityType/': typeof EntitiesEntityTypeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/gains'
-    | '/entities/$entityType/$id'
-    | '/entities/$entityType'
+  fullPaths: '/' | '/evaluate' | '/gains'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/gains' | '/entities/$entityType/$id' | '/entities/$entityType'
-  id:
-    | '__root__'
-    | '/'
-    | '/gains'
-    | '/entities/$entityType/$id'
-    | '/entities/$entityType/'
+  to: '/' | '/evaluate' | '/gains'
+  id: '__root__' | '/' | '/evaluate' | '/gains'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  EvaluateRoute: typeof EvaluateRoute
   GainsRoute: typeof GainsRoute
-  EntitiesEntityTypeIdRoute: typeof EntitiesEntityTypeIdRoute
-  EntitiesEntityTypeIndexRoute: typeof EntitiesEntityTypeIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -87,6 +68,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GainsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/evaluate': {
+      id: '/evaluate'
+      path: '/evaluate'
+      fullPath: '/evaluate'
+      preLoaderRoute: typeof EvaluateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -94,28 +82,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/entities/$entityType/': {
-      id: '/entities/$entityType/'
-      path: '/entities/$entityType'
-      fullPath: '/entities/$entityType'
-      preLoaderRoute: typeof EntitiesEntityTypeIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/entities/$entityType/$id': {
-      id: '/entities/$entityType/$id'
-      path: '/entities/$entityType/$id'
-      fullPath: '/entities/$entityType/$id'
-      preLoaderRoute: typeof EntitiesEntityTypeIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  EvaluateRoute: EvaluateRoute,
   GainsRoute: GainsRoute,
-  EntitiesEntityTypeIdRoute: EntitiesEntityTypeIdRoute,
-  EntitiesEntityTypeIndexRoute: EntitiesEntityTypeIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
