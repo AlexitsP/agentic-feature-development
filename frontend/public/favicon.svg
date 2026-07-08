@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AlpacAI">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7C6CF5"/>
+      <stop offset="1" stop-color="#5B4BD6"/>
+    </linearGradient>
+  </defs>
+  <!-- tile -->
+  <rect x="0" y="0" width="64" height="64" rx="15" fill="url(#bg)"/>
+  <!-- AI sparkle -->
+  <path d="M50 12 l1.6 4 4 1.6 -4 1.6 -1.6 4 -1.6 -4 -4 -1.6 4 -1.6 z" fill="#FFD24B"/>
+  <!-- ears -->
+  <path d="M23 15 C21 8 25 6 27 12 C28 16 26 20 24 20 Z" fill="#F4E8D5"/>
+  <path d="M41 15 C43 8 39 6 37 12 C36 16 38 20 40 20 Z" fill="#F4E8D5"/>
+  <!-- fluffy top tuft -->
+  <path d="M26 13 C26 6 38 6 38 13 C42 12 42 18 38 18 L26 18 C22 18 22 12 26 13 Z" fill="#FBF3E6"/>
+  <!-- head -->
+  <ellipse cx="32" cy="34" rx="14" ry="17" fill="#F4E8D5"/>
+  <!-- muzzle -->
+  <ellipse cx="32" cy="43" rx="8.5" ry="7.5" fill="#FBF3E6"/>
+  <!-- eyes -->
+  <circle cx="26" cy="32" r="3.2" fill="#3A3540"/>
+  <circle cx="38" cy="32" r="3.2" fill="#3A3540"/>
+  <circle cx="27.1" cy="30.9" r="1" fill="#fff"/>
+  <circle cx="39.1" cy="30.9" r="1" fill="#fff"/>
+  <!-- nose + smile -->
+  <path d="M30 41 h4 a1 1 0 0 1 -4 0 Z" fill="#B98A6B"/>
+  <path d="M32 42 C30 46 28 45 27.5 43.5 M32 42 C34 46 36 45 36.5 43.5" fill="none" stroke="#C89A78" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Swiss-red scarf with cross -->
+  <path d="M20 51 q12 6 24 0 l0 4 q-12 6 -24 0 Z" fill="#E1000F"/>
+  <path d="M31 53.6 h2 v1.4 h1.4 v2 h-1.4 v1.4 h-2 v-1.4 h-1.4 v-2 h1.4 z" fill="#fff"/>
+</svg>
