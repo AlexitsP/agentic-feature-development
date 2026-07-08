@@ -26,13 +26,10 @@ async def main() -> None:
         workflows=[GainsCheckWorkflow, GainsPlanWorkflow],
         activities=[
             model.model_chat,
-            gains.search_gif,
-            gains.fetch_verdict_gif,
             gains.finalize_gains,
             gains.finalize_plan,
             gains.record_plan_event,
             gains.record_gains_event,
-            gains.synthesize_speech,
         ],
         activity_executor=activity_executor,
     )
