@@ -25,6 +25,7 @@ Architectural decisions (data model, orchestration engine, deployment topology, 
 | [0004](./0004-deployment-posture-local-only.md) | Deployment posture — local-only for now | Accepted |
 | [0005](./0005-gains-plan-multi-agent-panel.md) | Gains Plan — multi-agent panel (parallel specialists → synthesizer) | Accepted |
 | [0006](./0006-trim-to-gains-only-minimal-repo.md) | Trim to a Gains-only minimal repo | Accepted |
+| [0007](./0007-owner-scoped-rls-and-auth.md) | Owner-scoped RLS + auth (proposal for SEC-1) | Proposed |
 
 ## Maintenance note
 
