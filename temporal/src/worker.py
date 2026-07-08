@@ -6,12 +6,13 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from .config import settings
+from .logging_config import configure_logging
 from .activities import gains, model
 from .workflows.gains_check import GainsCheckWorkflow
 from .workflows.gains_plan import GainsPlanWorkflow
 from .runs.poller import poll_loop
 
-logging.basicConfig(level=logging.INFO)
+configure_logging(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
