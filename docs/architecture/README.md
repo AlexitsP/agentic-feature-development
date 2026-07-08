@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Cross-cutting architecture docs for **Plan my studies** — the narrative that ties the
+Cross-cutting architecture docs for **AlpacAI** — the narrative that ties the
 subsystems together. It complements, not replaces:
 
 - [`docs/adrs/`](../adrs/) — **why** each decision was made (the binding record).

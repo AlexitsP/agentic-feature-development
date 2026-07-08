@@ -1,7 +1,7 @@
-# 🎓 Plan my studies
+# 🦙 AlpacAI
 
-A Swiss **higher-education advisor** on **Supabase + Temporal + Vite/React + a hosted LLM**,
-built as a **kernel + feature-plugin platform**: a small shared kernel (run lifecycle, model
+**AlpacAI** — a **Swiss AI hub for learning** on **Supabase + Temporal + Vite/React + a hosted
+LLM**, built as a **kernel + feature-plugin platform**: a small shared kernel (run lifecycle, model
 access, live tracing, confidence scoring, source grounding, auth) hosts self-contained features.
 
 Today it ships two features:

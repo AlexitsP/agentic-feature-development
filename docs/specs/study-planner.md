@@ -5,7 +5,7 @@
 **Created:** 2026-07-08
 **Last Updated:** 2026-07-08
 
-> Spec-driven + TDD. Second feature plug-in of the "Plan my studies" platform, built on
+> Spec-driven + TDD. Second feature plug-in of the AlpacAI platform, built on
 > the existing kernel (ADR-0008 registry, ADR-0009 confidence) and owner-scoped auth
 > (ADR-0007). The architecture is already decided; this spec defines the feature's
 > behavior and its testable contract.
@@ -15,8 +15,8 @@
 Given a study goal (a field/program, optionally carried over from the Program Evaluator)
 plus the student's situation, a **multi-agent panel** drafts a concrete, research-based
 **study plan** — including a **"how to study"** facet — grounded in the curated official
-Swiss source allowlist, with a kernel-computed **confidence badge**. This is the
-"Plan my studies" payload; it flips the disabled `How to Study` launcher stub into a real
+Swiss source allowlist, with a kernel-computed **confidence badge**. This is the AlpacAI
+study-planning payload; it flips the disabled `How to Study` launcher stub into a real
 feature.
 
 ## Goals
