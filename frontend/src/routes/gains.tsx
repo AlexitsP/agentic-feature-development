@@ -417,13 +417,15 @@ function GainsCheck() {
           <li key={label} className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => !busy && !planBusy && i <= step && setStep(i)}
-              disabled={busy || planBusy || i > step}
+              onClick={() => !busy && !planBusy && i < step && setStep(i)}
+              disabled={busy || planBusy || i >= step}
+              aria-current={i === step ? 'step' : undefined}
+              title={i < step && !busy && !planBusy ? `Go back to ${label}` : undefined}
               className={`flex items-center gap-1.5 rounded-full px-2 py-1 transition-colors disabled:cursor-default ${
                 i === step
                   ? 'bg-primary/10 font-medium text-foreground'
                   : i < step
-                    ? 'text-foreground hover:bg-muted/50'
+                    ? 'cursor-pointer text-foreground hover:bg-muted hover:underline underline-offset-4'
                     : 'text-muted-foreground'
               }`}
             >
