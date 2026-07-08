@@ -51,8 +51,8 @@ MUST / MUST-NOT"** section. Load the relevant part on demand:
 - **Merge strategy:** squash-merge (hence never-reuse-a-merged-branch).
 - **Auth / RLS posture:** owner-scoped RLS + Supabase Auth exist (ADR-0007); each feature is
   **open-anon** or **owner-scoped** and declares `requires_auth` to match. Anonymous sign-in is
-  enabled for gated features (ADR-0011). Currently: `program_evaluator` open, `study_planner`
-  owner-scoped. The worker writes with the service role (bypasses RLS).
+  enabled for gated features (ADR-0011). Currently both `program_evaluator` and `study_planner`
+  are **owner-scoped** (`requires_auth=true`). The worker writes with the service role (bypasses RLS).
 - **Feature flags:** `FEATURES_ENABLED` (worker) / `VITE_ENABLED_FEATURES` (frontend) toggle
   features without code edits (ADR-0010).
 - **Deployment:** **local-only** ([ADR-0004](docs/adrs/0004-deployment-posture-local-only.md)).

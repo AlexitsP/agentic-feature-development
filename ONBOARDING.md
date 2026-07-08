@@ -54,7 +54,7 @@ Today:
 
 - **Program Evaluator** (`/evaluate`) — assesses a prospective student's fit and suggests Swiss
   study options (University / UAS / PH), grounded in official sources, with a confidence badge.
-  **Open-anon** (no sign-in).
+  **Owner-scoped** (the frontend signs in anonymously; no sign-up needed).
 - **Study Planner** (`/plan`) — a multi-agent panel drafts a study plan + how-to-study.
   **Owner-scoped** (requires an auth session; the frontend signs in anonymously).
 

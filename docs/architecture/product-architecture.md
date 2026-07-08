@@ -133,7 +133,7 @@ sequenceDiagram
 
 | Feature | Route | Table (RLS) | requiresAuth | Shape |
 |---|---|---|---|---|
-| **Program Evaluator** | `/evaluate` | `program_evaluations` (open-anon, experiment) | false | one forced-tool model turn → fit assessment + suggested study options + confidence |
+| **Program Evaluator** | `/evaluate` | `program_evaluations` (owner-scoped) | true | one forced-tool model turn → fit assessment + suggested study options + confidence |
 | **Study Planner** | `/plan` | `study_plans` (owner-scoped) | true | multi-agent **panel** (curriculum + study-skills) in parallel → head-advisor **synthesis** → plan + how-to-study + confidence |
 
 Both are Swiss higher-ed: institution types University / UAS (Fachhochschule) / PH; sources from

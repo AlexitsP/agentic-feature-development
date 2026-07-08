@@ -16,7 +16,7 @@ MANIFEST = FeatureManifest(
     key="program_evaluator",
     title="Program Evaluator",
     enabled=True,
-    requires_auth=False,  # ADR-0011: runs open-anon during the local experiment
+    requires_auth=True,  # ADR-0011: owner-scoped — matches program_evaluations RLS (ADR-0007)
     workflows=(EvaluationWorkflow,),
     activities=(model_chat, activities.finalize_evaluation, activities.record_evaluation_event),
     claims=(ClaimSpec(table="program_evaluations", workflow=EvaluationWorkflow, workflow_id_prefix="eval-"),),

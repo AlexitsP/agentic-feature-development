@@ -22,9 +22,9 @@ Rules for this feature package. They override generic root guidance here.
 
 ## Invariants
 
-- **`requires_auth` MUST match the table's RLS.** This feature is `false` ⟺ `program_evaluations`
-  is open-anon. Flipping to owner-scoped means flipping the flag **and** the migration together
-  (ADR-0011).
+- **`requires_auth` MUST match the table's RLS.** This feature is `true` ⟺ `program_evaluations`
+  is owner-scoped (`auth.uid() = user_id`, ADR-0007). Changing the posture means flipping the flag
+  (backend + frontend) **and** the migration together (ADR-0011).
 - Confidence comes from `kernel.confidence.score_confidence` over observable signals — **never**
   the model's self-report (ADR-0009).
 - Failures finalize a **generic** error message (no raw exception to the anon-readable row — SEC-5).
@@ -36,5 +36,5 @@ Rules for this feature package. They override generic root guidance here.
   coercion, invented-source dropping, completeness bounds).
 - `EvaluationWorkflow`: `TestWorkflowEnvironment` with a **mocked** `model_chat` (forced tool,
   nudge-then-submit, max-rounds fallback, grounded→done). No live DB/model.
-- Owner-scoping is N/A here (open-anon); if flipped, verify RLS live in a rolled-back tx (see
-  [TESTING.md](../../../../docs/TESTING.md)).
+- Owner-scoping is verified **live in a rolled-back tx** (anon insert denied; authenticated insert
+  captures `auth.uid()`; cross-user reads isolated) — see [TESTING.md](../../../../docs/TESTING.md).

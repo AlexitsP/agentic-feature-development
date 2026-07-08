@@ -26,5 +26,5 @@ def test_enabled_features():
 def test_requires_auth_declared_per_feature():
     # ADR-0011: each feature declares its auth posture; must match its DB RLS.
     ra = {f.key: f.requires_auth for f in FEATURES}
-    assert ra["program_evaluator"] is False  # open-anon during the experiment
+    assert ra["program_evaluator"] is True  # owner-scoped (ADR-0007)
     assert ra["study_planner"] is True  # owner-scoped (ADR-0007)
