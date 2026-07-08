@@ -1,18 +1,13 @@
-"""Activities for the Gains Check workflow: fetch a GIF and finalize the row."""
+"""Activities for the Gains Check app: record trace events + finalize run rows."""
 from __future__ import annotations
 
-import base64
 import datetime as dt
 from typing import Any
-from xml.sax.saxutils import escape
 
 import httpx
 from temporalio import activity
 
-from ..agents.tools import gains_tools
 from ..config import settings
-
-_SPEECH_VOICE = "en-US-DavisNeural"
 
 
 def _rest_base() -> str:
@@ -22,89 +17,6 @@ def _rest_base() -> str:
 def _write_headers() -> dict[str, str]:
     key = settings.supabase_service_role_key
     return {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-
-
-@activity.defn
-def search_gif(query: str) -> dict[str, Any]:
-    return gains_tools.search_gif(query)
-
-
-@activity.defn
-def fetch_verdict_gif(passed: bool, fail_kind: str | None = None) -> dict[str, Any]:
-    """Fetch a themed GIF for the verdict, plus (on a pass) the matching meme quote.
-
-    On a pass, GIF + quote come from the same legend (Ronnie or Arnold) so the
-    on-screen/spoken line matches the GIF. On a fail, the GIF depends on the
-    kind: 'not_tracking' -> angry dog, 'slacking' -> a disappointed "come on".
-    A curated CDN GIF is used whenever the live search comes back empty, so a
-    themed GIF ALWAYS shows.
-    """
-    import random
-
-    if passed:
-        subject = random.choice(list(gains_tools.HYPE_SUBJECTS))
-        data = gains_tools.HYPE_SUBJECTS[subject]
-        result = gains_tools.search_gif(random.choice(data["queries"]), fallback_query=subject)
-        if not result.get("url"):
-            result["url"] = gains_tools.fallback_gif_url(subject)
-            result["source"] = "fallback"
-        result["subject"] = subject
-        result["quote"] = random.choice(data["quotes"])
-        result["fail_kind"] = None
-        return result
-
-    kind = fail_kind if fail_kind in ("not_tracking", "slacking") else "not_tracking"
-    result = gains_tools.search_gif(gains_tools.shame_query(kind))
-    if not result.get("url"):
-        result["url"] = gains_tools.fallback_gif_url(kind)
-        result["source"] = "fallback"
-    result["subject"] = None
-    result["quote"] = None
-    result["fail_kind"] = kind
-    return result
-
-
-@activity.defn
-def synthesize_speech(text: str, style: str, hype: bool) -> str | None:
-    """Neural TTS via Azure Speech. Returns base64 MP3, or None if disabled/unconfigured/failed.
-
-    ``style`` is an mstts express-as style (excited/shouting/cheerful/angry/hopeful)
-    chosen from the coach persona; ``hype`` only nudges the pitch up on a pass.
-    Gated behind AZURE_SPEECH_ENABLED so TTS can be switched off without removing it.
-    """
-    if not settings.azure_speech_enabled:
-        return None
-    key = settings.azure_speech_key
-    region = settings.azure_speech_region
-    if not key or not region or not text:
-        return None
-    pitch = "+12%" if hype else "-6%"
-    ssml = (
-        "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' "
-        "xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'>"
-        f"<voice name='{_SPEECH_VOICE}'>"
-        f"<mstts:express-as style='{style}' styledegree='2'>"
-        f"<prosody rate='+8%' pitch='{pitch}' volume='+80%'>{escape(text)}</prosody>"
-        "</mstts:express-as></voice></speak>"
-    )
-    url = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
-    try:
-        with httpx.Client(timeout=20.0) as client:
-            resp = client.post(
-                url,
-                headers={
-                    "Ocp-Apim-Subscription-Key": key,
-                    "Content-Type": "application/ssml+xml",
-                    "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
-                    "User-Agent": "gainscheck",
-                },
-                content=ssml.encode("utf-8"),
-            )
-            if resp.status_code != 200:
-                return None
-            return base64.b64encode(resp.content).decode("ascii")
-    except Exception:
-        return None
 
 
 @activity.defn

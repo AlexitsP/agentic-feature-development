@@ -18,16 +18,6 @@ class Settings(BaseSettings):
     # auth mode: "auto" (Entra first, key fallback) | "entra" | "key"
     azure_openai_auth: str = Field("auto", env="AZURE_OPENAI_AUTH")
 
-    # Giphy API key for the Gains Check demo (optional; falls back to curated GIFs).
-    giphy_api_key: str = Field("", env="GIPHY_API_KEY")
-
-    # Azure Speech (neural TTS) for the spoken verdict. Optional; falls back to
-    # the browser's speechSynthesis when unset.
-    azure_speech_key: str = Field("", env="AZURE_SPEECH_KEY")
-    azure_speech_region: str = Field("", env="AZURE_SPEECH_REGION")
-    # Master switch for TTS. Off for now (kept in code for later). Set to true to re-enable.
-    azure_speech_enabled: bool = Field(False, env="AZURE_SPEECH_ENABLED")
-
     class Config:
         case_sensitive = False
 
