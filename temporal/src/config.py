@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # the browser's speechSynthesis when unset.
     azure_speech_key: str = Field("", env="AZURE_SPEECH_KEY")
     azure_speech_region: str = Field("", env="AZURE_SPEECH_REGION")
+    # Master switch for TTS. Off for now (kept in code for later). Set to true to re-enable.
+    azure_speech_enabled: bool = Field(False, env="AZURE_SPEECH_ENABLED")
 
     class Config:
         case_sensitive = False

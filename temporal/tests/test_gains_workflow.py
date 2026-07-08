@@ -53,12 +53,6 @@ async def m_record(check_id, seq, stage, label, detail=None, tokens=None):
     H.calls.append(("record_gains_event", stage))
 
 
-@activity.defn(name="pick_legend")
-async def m_pick_legend(user_input=None):
-    H.calls.append(("pick_legend", user_input))
-    return H.legend
-
-
 @activity.defn(name="model_chat")
 async def m_model_chat(messages, tools, max_tokens=2048, tool_choice="auto"):
     H.calls.append(("model_chat", tool_choice))
@@ -95,7 +89,7 @@ async def m_finalize(check_id, status, result=None, error=None):
     H.calls.append(("finalize_gains", status))
 
 
-ACTIVITIES = [m_record, m_pick_legend, m_model_chat, m_fetch_gif, m_search_gif, m_speech, m_finalize]
+ACTIVITIES = [m_record, m_model_chat, m_fetch_gif, m_search_gif, m_speech, m_finalize]
 
 
 async def run_wf(user_input: dict) -> dict:
@@ -141,7 +135,6 @@ async def test_guided_pass_overrides_headline_with_meme_quote():
     assert res["spoken_line"] == "YEAH BUDDY!"
     assert res["gif_url"] == "http://gif/pass.gif"
     assert res["audio_b64"] == "QVVESU8="
-    assert res["legend"]["quip"] == "you wish"
     assert ("fetch_verdict_gif", (True, None)) in H.calls
     # Trace bookends were emitted.
     stages = [c[1] for c in H.calls if c[0] == "record_gains_event"]
@@ -219,28 +212,8 @@ async def test_agentic_searches_then_submits_without_overriding_the_model():
     assert res["passed"] is True
     assert res["headline"] == "GET NASTY"  # NOT overridden with a meme quote
     assert res["gif_url"] == "http://searched.gif"
-    assert res["legend"]["name"] == "Ronnie Coleman"
-    assert res["legend"]["quip"] == "close to Ronnie"
-    assert res["legend"]["weight_kg"] == 137  # looked up from the roster
-    assert res["legend"]["image_url"] == "http://model-legend.gif"  # model-provided
     assert ("search_gif", "ronnie yeah buddy") in H.calls
-    assert _n("search_gif") == 1  # not searched again for the legend
+    assert _n("search_gif") == 1
     # Agentic does NOT force the tool — the model decides when to search vs submit.
     assert [c[1] for c in H.calls if c[0] == "model_chat"][0] == "auto"
     assert ("synthesize_speech", "excited") in H.calls
-
-
-async def test_agentic_looks_up_legend_gif_when_model_omits_it():
-    H.model_responses = [
-        _resp_tools(_tool_call("submit_verdict", {
-            "passed": False, "fail_kind": "slacking", "headline": "MORE",
-            "spoken_line": "push", "reason": "weak", "gif_url": "", "voice_style": "hopeful",
-            "legend_name": "Arnold Schwarzenegger", "legend_comparison": "far from Arnold",
-            "legend_gif_url": ""})),
-    ]
-    res = (await run_wf({"weight_kg": 100, "protein_g": 90, "mode": "agentic"}))["result"]
-    assert res["legend"]["name"] == "Arnold Schwarzenegger"
-    assert res["legend"]["weight_kg"] == 107
-    assert res["legend"]["image_url"] == "http://searched.gif"  # fetched because model gave none
-    assert _n("search_gif") == 1
-    assert res["gif_url"] is None  # empty model gif_url -> None

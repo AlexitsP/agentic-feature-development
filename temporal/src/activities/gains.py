@@ -65,21 +65,15 @@ def fetch_verdict_gif(passed: bool, fail_kind: str | None = None) -> dict[str, A
 
 
 @activity.defn
-def pick_legend(user_input: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Pick the legend closest to the user's numbers and attach a GIF of them."""
-    legend = gains_tools.pick_closest_legend(user_input)
-    gif = gains_tools.search_gif(legend["gif_query"])
-    legend["image_url"] = gif.get("url")
-    return legend
-
-
-@activity.defn
 def synthesize_speech(text: str, style: str, hype: bool) -> str | None:
-    """Neural TTS via Azure Speech. Returns base64 MP3, or None if unconfigured/failed.
+    """Neural TTS via Azure Speech. Returns base64 MP3, or None if disabled/unconfigured/failed.
 
     ``style`` is an mstts express-as style (excited/shouting/cheerful/angry/hopeful)
     chosen from the coach persona; ``hype`` only nudges the pitch up on a pass.
+    Gated behind AZURE_SPEECH_ENABLED so TTS can be switched off without removing it.
     """
+    if not settings.azure_speech_enabled:
+        return None
     key = settings.azure_speech_key
     region = settings.azure_speech_region
     if not key or not region or not text:

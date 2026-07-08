@@ -24,16 +24,6 @@ interface GainsResult {
   reason: string;
   persona?: string;
   audio_b64?: string | null;
-  legend?: {
-    name: string;
-    weight_kg: number | null;
-    height_cm: number | null;
-    body_fat_pct: number | null;
-    fun_fact: string;
-    image_url: string | null;
-    matched?: boolean | null;
-    quip: string;
-  } | null;
   steps?: Array<{ tool: string; args: Record<string, unknown>; result: { query?: string; source?: string } }>;
 }
 
@@ -45,7 +35,7 @@ const MODE_INFO: Record<'guided' | 'agentic', { title: string; purpose: string; 
     rows: [
       [
         'How it works',
-        'The AI makes ONE structured decision — pass / fail and why — against explicit rules written into the prompt. Everything you then see and hear (the GIF, the meme quote, the rival legend, the voice style) is chosen by ordinary code from a curated library. One model call, no tool loop.',
+        'The AI makes ONE structured decision — pass / fail and why — against explicit rules written into the prompt. Everything you then see (the GIF, the meme quote) is chosen by ordinary code from a curated library. One model call, no tool loop.',
       ],
       [
         'Why have it',
@@ -60,13 +50,13 @@ const MODE_INFO: Record<'guided' | 'agentic', { title: string; purpose: string; 
     rows: [
       [
         'How it works',
-        'No fixed formula. The model judges your numbers on its own and has a real GIF-search tool it decides when and how to call — its own search terms, as many times as it likes. It picks the GIF, chooses a rival legend and writes the comparison, writes the headline and spoken line, and even chooses the voice style. A true reason → search → decide loop (watch the trace above).',
+        'No fixed formula. The model judges your numbers on its own and has a real GIF-search tool it decides when and how to call — its own search terms, as many times as it likes. It picks the GIF, writes the headline and spoken line, and even chooses the voice style. A true reason → search → decide loop (watch the trace above).',
       ],
       [
         'Why have it',
         'When you want adaptability, creativity and genuine tool use — the model can react to unusual inputs a fixed rule never anticipated — and you can accept more variability in exchange.',
       ],
-      ['What it means', 'The model drives; code just runs the tools it asks for. That’s a real agent trajectory — occasionally an off-brand GIF or odd rival is the honest price of the autonomy.'],
+      ['What it means', 'The model drives; code just runs the tools it asks for. That’s a real agent trajectory — occasionally an off-brand GIF is the honest price of the autonomy.'],
     ],
   },
 };
@@ -78,6 +68,10 @@ const PERSONAS = [
 ] as const;
 
 const STEP_LABELS = ['Engine', 'Coach', 'Your numbers', 'Result'] as const;
+
+// TTS is off for now (kept in code — flip to re-enable once the backend
+// AZURE_SPEECH_ENABLED flag is on too).
+const TTS_ENABLED = false;
 
 // Verdict theming: pass = green, "slacking" fail = amber, "not tracking" = red.
 function verdictTheme(r: GainsResult) {
@@ -132,6 +126,8 @@ function GainsCheck() {
   const [persona, setPersona] = useState<string>('gymbro');
   const [mode, setMode] = useState<'guided' | 'agentic'>('guided');
   const [step, setStep] = useState(0); // wizard: 0 Engine · 1 Coach · 2 Numbers · 3 Result
+  const [inputMode, setInputMode] = useState<'choose' | 'numbers' | 'freeform'>('choose');
+  const [freeform, setFreeform] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<GainsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -149,14 +145,17 @@ function GainsCheck() {
     setError(null);
     setEvents([]);
     setStatus('pending');
-    const input = {
-      weight_kg: num(form.weight_kg),
-      body_fat_pct: num(form.body_fat_pct),
-      calories: num(form.calories),
-      protein_g: num(form.protein_g),
-      persona,
-      mode,
-    };
+    const input =
+      inputMode === 'freeform'
+        ? { freeform: freeform.trim(), persona, mode }
+        : {
+            weight_kg: num(form.weight_kg),
+            body_fat_pct: num(form.body_fat_pct),
+            calories: num(form.calories),
+            protein_g: num(form.protein_g),
+            persona,
+            mode,
+          };
     const { data, error: insErr } = await supabase
       .from('gains_checks')
       .insert({ input, status: 'pending' })
@@ -169,7 +168,7 @@ function GainsCheck() {
       return;
     }
     setCheckId(data.id as string);
-  }, [form, persona, mode]);
+  }, [form, persona, mode, inputMode, freeform]);
 
   useEffect(() => {
     if (!checkId) return;
@@ -187,7 +186,7 @@ function GainsCheck() {
           if (row.error) setError(row.error);
           if (row.result) {
             setResult(row.result);
-            playResult(row.result);
+            if (TTS_ENABLED) playResult(row.result);
           }
         },
       )
@@ -450,30 +449,94 @@ function GainsCheck() {
 
         {step === 2 && (
           <div className="rounded-lg border p-4">
-            <div className="mb-3 text-sm text-muted-foreground">
-              Your tracked numbers <span className="text-xs">(leave blank what you don't log)</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {(
-                [
-                  ['weight_kg', 'Bodyweight (kg)'],
-                  ['body_fat_pct', 'Body fat (%)'],
-                  ['calories', 'Calories (kcal)'],
-                  ['protein_g', 'Protein (g)'],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="flex flex-col gap-1 text-sm">
-                  <span className="text-muted-foreground">{label}</span>
-                  <input
-                    type="number"
-                    value={form[key]}
-                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                    className="rounded-md border px-3 py-2"
-                    placeholder="—"
-                  />
-                </label>
-              ))}
-            </div>
+            {inputMode === 'choose' && (
+              <>
+                <div className="mb-3 text-sm text-muted-foreground">How do you want to give your stats?</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('numbers')}
+                    className="flex flex-col gap-1 rounded-md border px-3 py-4 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <span className="text-sm font-medium">🔢 I know my numbers</span>
+                    <span className="text-xs leading-snug text-muted-foreground">
+                      Enter your bodyweight (kg), body fat (%), daily calories (kcal) and protein (g).
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('freeform')}
+                    className="flex flex-col gap-1 rounded-md border px-3 py-4 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <span className="text-sm font-medium">💬 I don't know my numbers</span>
+                    <span className="text-xs leading-snug text-muted-foreground">
+                      A prompt opens where you describe your eating &amp; training in plain words — the coach makes sense of it.
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {inputMode === 'numbers' && (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Your tracked numbers <span className="text-xs">(leave blank what you don't log)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('choose')}
+                    className="shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted/50"
+                  >
+                    ← Change method
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {(
+                    [
+                      ['weight_kg', 'Bodyweight (kg)'],
+                      ['body_fat_pct', 'Body fat (%)'],
+                      ['calories', 'Calories (kcal)'],
+                      ['protein_g', 'Protein (g)'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label key={key} className="flex flex-col gap-1 text-sm">
+                      <span className="text-muted-foreground">{label}</span>
+                      <input
+                        type="number"
+                        value={form[key]}
+                        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                        className="rounded-md border px-3 py-2"
+                        placeholder="—"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {inputMode === 'freeform' && (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Describe your eating &amp; training in your own words</span>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('choose')}
+                    className="shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted/50"
+                  >
+                    ← Change method
+                  </button>
+                </div>
+                <textarea
+                  value={freeform}
+                  onChange={(e) => setFreeform(e.target.value)}
+                  rows={5}
+                  placeholder="e.g. I'm around 90 kg, eat roughly 3000 calories and about 180 g of protein most days, lift 4x a week — no idea on my body fat."
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">The coach interprets this — the more detail, the sharper the verdict.</p>
+              </>
+            )}
           </div>
         )}
 
@@ -529,50 +592,11 @@ function GainsCheck() {
                 </div>
                 <p className="mt-4 text-lg font-medium">{result.reason}</p>
                 <p className="mt-1 text-sm text-muted-foreground">🔊 “{result.spoken_line}”</p>
-                <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
-                  replay sound
-                </button>
-              </div>
-            )}
-
-            {result && status === 'done' && result.legend && (
-              <div className="rounded-xl border p-4">
-                <div className="mb-3 text-sm font-medium">
-                  🏆 You vs {result.legend.name}
-                  <span className="ml-2 font-normal text-muted-foreground">
-                    {result.mode === 'agentic'
-                      ? "· coach's pick"
-                      : result.legend.matched
-                        ? '· your closest match'
-                        : '· random rival'}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-4 sm:flex-row">
-                  {result.legend.image_url && (
-                    <img
-                      src={result.legend.image_url}
-                      alt={result.legend.name}
-                      className="h-40 w-40 shrink-0 rounded-lg object-cover"
-                    />
-                  )}
-                  <div className="flex-1 space-y-3">
-                    <p className="text-sm">{result.legend.quip}</p>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="font-medium text-muted-foreground">Metric</div>
-                      <div className="font-medium">You</div>
-                      <div className="font-medium">{result.legend.name}</div>
-
-                      <div className="text-muted-foreground">Weight (kg)</div>
-                      <div>{form.weight_kg || '—'}</div>
-                      <div>{result.legend.weight_kg ?? '—'}</div>
-
-                      <div className="text-muted-foreground">Body fat (%)</div>
-                      <div>{form.body_fat_pct || '—'}</div>
-                      <div>{result.legend.body_fat_pct ?? '—'}</div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{result.legend.fun_fact}</p>
-                  </div>
-                </div>
+                {TTS_ENABLED && (
+                  <button type="button" onClick={() => playResult(result)} className="mt-3 text-xs underline">
+                    replay sound
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -606,7 +630,7 @@ function GainsCheck() {
               start();
               setStep(3);
             }}
-            disabled={busy}
+            disabled={busy || inputMode === 'choose'}
             className="rounded-md bg-primary px-6 py-2 text-base font-bold text-primary-foreground disabled:opacity-50"
           >
             {busy ? 'COACH IS LOOKING…' : '💪 CHECK MY GAINS'}
@@ -621,6 +645,8 @@ function GainsCheck() {
               setEvents([]);
               setStatus('idle');
               setCheckId(null);
+              setInputMode('choose');
+              setFreeform('');
               setStep(0);
             }}
             disabled={busy}

@@ -128,9 +128,8 @@ TOOLS: list[dict[str, Any]] = [
                     "spoken_line": {"type": "string", "description": "What the voice shouts — a Ronnie Coleman / Arnold catchphrase on a pass, or a scolding on a fail"},
                     "sound": {"type": "string", "enum": ["hype", "shame"]},
                     "reason": {"type": "string", "description": "One-line why, in your coach voice"},
-                    "legend_quip": {"type": "string", "description": "A funny 1-2 sentence comparison of the user's numbers to the named legend's numbers"},
                 },
-                "required": ["passed", "headline", "spoken_line", "sound", "reason", "legend_quip"],
+                "required": ["passed", "headline", "spoken_line", "sound", "reason"],
             },
         },
     },
@@ -171,62 +170,6 @@ def shame_query(fail_kind: str | None) -> str:
     return random.choice(SHAME_QUERIES.get(fail_kind or "not_tracking", SHAME_QUERIES["not_tracking"]))
 
 
-# Legends to stack the user up against. Stats are approximate contest condition.
-LEGENDS = [
-    {"name": "Ronnie Coleman", "weight_kg": 137, "height_cm": 180, "body_fat_pct": 4,
-     "gif_query": "Ronnie Coleman", "fun_fact": "8-time Mr. Olympia who squatted 800 lb yelling 'YEAH BUDDY'."},
-    {"name": "Arnold Schwarzenegger", "weight_kg": 107, "height_cm": 188, "body_fat_pct": 5,
-     "gif_query": "Arnold Schwarzenegger bodybuilding", "fun_fact": "7-time Mr. Olympia, then the Terminator, then a Governor."},
-    {"name": "Dorian Yates", "weight_kg": 122, "height_cm": 178, "body_fat_pct": 4,
-     "gif_query": "Dorian Yates", "fun_fact": "'The Shadow' — 6 Olympias on brutally heavy training."},
-    {"name": "Jay Cutler", "weight_kg": 121, "height_cm": 175, "body_fat_pct": 5,
-     "gif_query": "Jay Cutler bodybuilder", "fun_fact": "4-time Mr. Olympia who finally dethroned Ronnie."},
-    {"name": "Phil Heath", "weight_kg": 113, "height_cm": 175, "body_fat_pct": 4,
-     "gif_query": "Phil Heath", "fun_fact": "'The Gift' — 7 straight Mr. Olympia titles."},
-    {"name": "Chris Bumstead", "weight_kg": 100, "height_cm": 185, "body_fat_pct": 4,
-     "gif_query": "Chris Bumstead", "fun_fact": "'CBum' — the Classic Physique king."},
-    {"name": "Frank Zane", "weight_kg": 85, "height_cm": 175, "body_fat_pct": 5,
-     "gif_query": "Frank Zane", "fun_fact": "3-time Mr. Olympia and the icon of aesthetics."},
-    {"name": "Iris Kyle", "weight_kg": 74, "height_cm": 168, "body_fat_pct": 6,
-     "gif_query": "Iris Kyle bodybuilder", "fun_fact": "10-time Ms. Olympia — the most decorated bodybuilder, period."},
-    {"name": "Dana Linn Bailey", "weight_kg": 63, "height_cm": 168, "body_fat_pct": 8,
-     "gif_query": "Dana Linn Bailey", "fun_fact": "The first-ever Women's Physique Olympia champion."},
-    {"name": "Andrea Shaw", "weight_kg": 77, "height_cm": 173, "body_fat_pct": 6,
-     "gif_query": "Andrea Shaw bodybuilder", "fun_fact": "Multiple-time Ms. Olympia who brought back mass and symmetry."},
-    {"name": "Cydney Gillon", "weight_kg": 60, "height_cm": 165, "body_fat_pct": 8,
-     "gif_query": "Cydney Gillon", "fun_fact": "Dominant multi-time Figure Olympia champion."},
-]
-
-
-# Distance scales for legend matching. Deliberately NOT the legend spread: every
-# legend is sub-8% contest-shredded, so normalising body fat by its tiny 4-8%
-# range would let it dominate and collapse everyone onto the leanest-but-heaviest
-# legend regardless of weight. These are realistic human gaps — a 35 kg weight
-# gap counts about as "far" as a 12-point body-fat gap — so weight stays meaningful.
-_WEIGHT_SCALE = 35.0
-_BF_SCALE = 12.0
-
-
-def legend_by_name(name: str | None) -> dict[str, Any] | None:
-    """Look a legend up by (fuzzy) name — reference data for the agentic path,
-    where the MODEL chooses which legend to compare against."""
-    if not name:
-        return None
-    n = name.strip().lower()
-    for l in LEGENDS:
-        ln = l["name"].lower()
-        if n == ln or n in ln or ln in n:
-            return l
-    return None
-
-
-def legend_roster_text() -> str:
-    """Compact roster the agentic model is given so it can pick a rival itself."""
-    return "; ".join(
-        f"{l['name']} ({l['weight_kg']}kg, {l['body_fat_pct']}% BF, {l['height_cm']}cm)" for l in LEGENDS
-    )
-
-
 # Neural-TTS express-as styles en-US-DavisNeural supports. In the agentic path
 # the MODEL chooses the emotional delivery from this set.
 VOICE_STYLES = ["excited", "shouting", "cheerful", "friendly", "angry", "hopeful", "sad"]
@@ -243,8 +186,7 @@ AGENTIC_TOOLS: list[dict[str, Any]] = [
             "name": "search_gif",
             "description": (
                 "Search Giphy for a GIF and get a URL back. YOU choose the search terms. "
-                "Call it as many times as you like — e.g. one GIF that fits your verdict, "
-                "and one of the legend you compare against."
+                "Call it as many times as you like to find a GIF that fits your verdict."
             ),
             "parameters": {
                 "type": "object",
@@ -274,42 +216,9 @@ AGENTIC_TOOLS: list[dict[str, Any]] = [
                     "reason": {"type": "string", "description": "One-line why, in character"},
                     "gif_url": {"type": "string", "description": "A URL you got back from search_gif that fits the verdict. Empty string if none suitable."},
                     "voice_style": {"type": "string", "enum": VOICE_STYLES, "description": "How the line should be spoken"},
-                    "legend_name": {"type": "string", "description": "The legend you chose to compare the user against"},
-                    "legend_comparison": {"type": "string", "description": "A funny comparison of the user's numbers to that legend's"},
-                    "legend_gif_url": {"type": "string", "description": "A URL from search_gif of that legend, or empty string"},
                 },
-                "required": ["passed", "headline", "spoken_line", "reason", "gif_url", "voice_style", "legend_name", "legend_comparison"],
+                "required": ["passed", "headline", "spoken_line", "reason", "gif_url", "voice_style"],
             },
         },
     },
 ]
-
-
-def pick_closest_legend(user_input: dict[str, Any] | None) -> dict[str, Any]:
-    """Pick the legend whose contest stats are nearest the user's numbers.
-
-    Distance blends weight and body-fat gaps on realistic human scales (see
-    above) so weight isn't drowned out. If the user gave neither weight nor body
-    fat, there's nothing to match on, so pick at random. Returns a copy with
-    ``matched`` set.
-    """
-    user_input = user_input or {}
-    weight = user_input.get("weight_kg")
-    bf = user_input.get("body_fat_pct")
-
-    if weight is None and bf is None:
-        legend = dict(random.choice(LEGENDS))
-        legend["matched"] = False
-        return legend
-
-    def distance(l: dict[str, Any]) -> float:
-        d = 0.0
-        if weight is not None:
-            d += (abs(l["weight_kg"] - weight) / _WEIGHT_SCALE) ** 2
-        if bf is not None:
-            d += (abs(l["body_fat_pct"] - bf) / _BF_SCALE) ** 2
-        return d
-
-    legend = dict(min(LEGENDS, key=distance))
-    legend["matched"] = True
-    return legend
