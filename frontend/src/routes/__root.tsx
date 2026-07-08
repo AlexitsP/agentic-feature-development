@@ -20,7 +20,7 @@ function RootComponent() {
       <header className="border-b">
         <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-1 px-6 py-3 text-sm">
           <Link to="/" aria-label="SLH AI Hub home">
-            <Logo markSize={24} />
+            <Logo />
           </Link>
           <span className="text-muted-foreground">·</span>
           {features.map((f) => (
