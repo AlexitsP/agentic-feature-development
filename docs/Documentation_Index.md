@@ -20,6 +20,7 @@ The reference point for every architectural choice — see [`docs/adrs/`](./adrs
 | [0009](./adrs/0009-confidence-signal-observable-not-self-reported.md) | Confidence signal from observable factors | Accepted |
 | [0010](./adrs/0010-frontend-nav-and-feature-flags.md) | Frontend nav + env feature flags | Accepted |
 | [0011](./adrs/0011-per-feature-auth-gate.md) | Per-feature auth gate (`requiresAuth`) | Accepted |
+| [0012](./adrs/0012-plugins-as-mcp-servers.md) | Plugins as MCP servers (kernel-as-MCP-host) | Proposed |
 
 ## 📂 Architecture & Stack
 
@@ -47,6 +48,17 @@ that library.
 Approved feature specs live in [`docs/specs/`](./specs/): the
 [study-pathway-advisor](./specs/study-pathway-advisor.md) (platform + evaluator) and the
 [study-planner](./specs/study-planner.md).
+
+**Portable platform spec set** — [`docs/specs/platform/`](./specs/platform/) (start at its
+[README](./specs/platform/README.md)) documents the kernel + agentic-plugin concept in a
+**stack-agnostic, ports-and-adapters** form so it can be understood, reused, and ported to a
+different tech stack. Reading order: [concept](./specs/platform/00-concept.md) →
+[architecture](./specs/platform/01-architecture.md) →
+[plugin manifest](./specs/platform/02-plugin-manifest.md) →
+[kernel contract](./specs/platform/03-kernel-contract.md) →
+[auth & entitlements](./specs/platform/04-auth-and-entitlements.md) →
+[porting guide](./specs/platform/05-porting-guide.md). Generalises ADR-0008 + ADR-0012; the
+current Supabase/Temporal/React/Azure stack is one interchangeable reference mapping.
 
 ---
 
